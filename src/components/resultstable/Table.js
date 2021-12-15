@@ -24,7 +24,7 @@ export default function Table({page, rowsPerPage, searchResult}) {
         const tc_length = float_to_tc((found[API_RESULT_KEYS.TIMECODE][1] - found[API_RESULT_KEYS.TIMECODE][0]), found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
         
         return (
-            <tr className='result-row'>
+            <tr key={index} className='result-row'>
                 <td>{found[API_RESULT_KEYS.PROJECT]}</td>
                 <td>{found[API_RESULT_KEYS.SEGMENT]}</td>
                 <td>{found[API_RESULT_KEYS.CHARACTER]}</td>

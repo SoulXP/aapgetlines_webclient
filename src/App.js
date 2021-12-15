@@ -47,7 +47,9 @@ export default class App extends React.Component {
 
             // Pagination variables
             page: 0,
-            rows_per_page: 10,
+            // rows_per_page: 10,
+            rows_per_page: Math.floor((0.84 * window.screen.height) / 45), // 84% is a magic number for now
+            row_size: 10,
 
             // UI styling variables
             ui_style: {
@@ -67,15 +69,24 @@ export default class App extends React.Component {
         this.episodesInput = React.createRef();
         this.charactersInput = React.createRef();
         this.linesInput = React.createRef();
+        this.table = React.createRef();
     }
 
     toggleTextInput(direction = 1) {
-        if (this.state.current_input_focus + direction < 0 || this.state.current_input_focus + direction > 3) {
-            this.setState({ current_input_focus: 0 });
-        } else {
-            this.setState({ current_input_focus: this.state.current_input_focus + direction });
+        // Default for next input state
+        let next_input_focus = this.state.current_input_focus + direction;
+
+        // Determine next focus state should wrap around
+        if (next_input_focus > 3) {
+            next_input_focus = 0;
+        } else if (next_input_focus < 0) {
+            next_input_focus = 3
         }
 
+        // Set state for focus field
+        this.setState({ current_input_focus: next_input_focus })
+
+        // Set focus according to state
         switch (this.state.current_input_focus) {
             case 0:
                 this.projectInput.current.focus();
@@ -259,13 +270,20 @@ export default class App extends React.Component {
             projects: '',
             characters: '',
             episodes: '',
-            lines: ''
+            lines: '',
+            are_fields_empty: true
         });
+
+        // if (this.state.are_fields_empty) {
+        //     this.setState({ successful_results: false });
+        // }
 
         if (clear_results) {
             this.setState({
                 page: 0,
-                result: result_default
+                result: result_default,
+                current_query: '',
+                successful_results: false,
             });
         }
     }
@@ -274,11 +292,10 @@ export default class App extends React.Component {
         // Listen for shortcuts
         window.addEventListener('keydown', (e) => {
             // console.log(e.key);
-            // Store state for currently pressed button
-            this.setState({ btn_last_pressed: e.key });
+            // console.log(this.state.btn_last_pressed);
             
             // Get modifier state
-            const modifier_key = (window.navigator.platform === 'Win32') ? e.altKey : e.metaKey;
+            const modifier_key = (window.navigator.platform === 'Win32') ? (e.ctrlKey && e.shiftKey) : e.metaKey;
             const shift_key = e.shiftKey;
 
             // Make a line search on Ctrl/Cmd + Enter
@@ -288,11 +305,13 @@ export default class App extends React.Component {
             
             // Change results to previous page on Ctrl/Cmd + Left
             if (e.key === 'ArrowLeft' && modifier_key) {
+                e.preventDefault();
                 this.offsetPage(-1);
             }
             
             // Change results to next page on Ctrl/Cmd + Right
             if (e.key === 'ArrowRight' && modifier_key) {
+                e.preventDefault();
                 this.offsetPage(1);
             }
             
@@ -303,8 +322,14 @@ export default class App extends React.Component {
             }
 
             // Clear clear search results on 2x Escape
-            if (e.key === 'Escape' && this.state.btn_last_pressed === 'Escape') {
+            if (e.key === 'Escape' && this.state.are_fields_empty) {
                 this.clearSearch(true);
+            }
+
+            // Clear clear search results on 2x Escape
+            if (e.key === 'Escape' && this.state.btn_last_pressed == 'Escape') {
+                this.projectInput.current.focus();
+                this.setState({ current_input_focus: 0 });
             }
 
             // Navigate left to right on Shift + Tab
@@ -316,6 +341,8 @@ export default class App extends React.Component {
                 this.toggleTextInput(-1);
             }
 
+            // Store state for currently pressed button
+            this.setState({ btn_last_pressed: e.key });
         });
 
     }
@@ -357,19 +384,22 @@ export default class App extends React.Component {
                     line={this.state.lines}
                     page={this.state.page}
                 />
-                <Table
-                    page={this.state.page}
-                    rowsPerPage={this.state.rows_per_page}
-                    searchCallback={this.lineSearch.bind(this)}
-                    searchResult={this.state.result}
-                />
-                <TablePagination
-                    className='pagination-bar'
-                    results={this.state.result}
-                    page={this.state.page}
-                    rowsPerPage={this.state.rows_per_page}
-                    updatePageCallback={this.offsetPage.bind(this)}
-                />
+                <div className='table-wrapper'>
+                    <Table
+                        ref={this.table}
+                        page={this.state.page}
+                        rowsPerPage={this.state.rows_per_page}
+                        searchCallback={this.lineSearch.bind(this)}
+                        searchResult={this.state.result}
+                    />
+                    <TablePagination
+                        className='pagination-bar'
+                        results={this.state.result}
+                        page={this.state.page}
+                        rowsPerPage={this.state.rows_per_page}
+                        updatePageCallback={this.offsetPage.bind(this)}
+                    />
+                </div>
             </div>
         );
     }
