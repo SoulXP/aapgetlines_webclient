@@ -22,16 +22,20 @@ const result_default = {
 
 export default class App extends React.Component {
     constructor(props) {
+        // Call parent constructor
         super(props);
 
+        // App stateful variables
         this.state = {
+            // Search variables
             projects: '',
             characters: '',
             episodes: '',
             lines: '',
-            page: 0,
-            rows_per_page: 10,
+            current_input_focus: 0,
             current_query: '',
+            successful_results: false,
+            are_fields_empty: true,
             current_query_parameters: {
                 projects: [],
                 characters: [],
@@ -40,10 +44,65 @@ export default class App extends React.Component {
                 offset: 0
             },
             result: result_default,
+
+            // Pagination variables
+            page: 0,
+            rows_per_page: 10,
+
+            // UI styling variables
             ui_style: {
                 backgroundColor: '#333333'
-            }
+            },
+
+            // User environment variables
+            user_screen_width: window.screen.width,
+            user_screen_height: window.screen.height,
+
+            // Key-stroke state
+            btn_last_pressed: ''
         };
+
+        // References to DOM components
+        this.projectInput = React.createRef();
+        this.episodesInput = React.createRef();
+        this.charactersInput = React.createRef();
+        this.linesInput = React.createRef();
+    }
+
+    toggleTextInput(direction = 1) {
+        if (this.state.current_input_focus + direction < 0 || this.state.current_input_focus + direction > 3) {
+            this.setState({ current_input_focus: 0 });
+        } else {
+            this.setState({ current_input_focus: this.state.current_input_focus + direction });
+        }
+
+        switch (this.state.current_input_focus) {
+            case 0:
+                this.projectInput.current.focus();
+                break;
+            case 1:
+                this.charactersInput.current.focus();
+                break;
+            case 2:
+                this.episodesInput.current.focus();
+                break;
+            case 3:
+                this.linesInput.current.focus();
+                break;
+            default:
+                console.error('[ERROR] no reference to input field was set');
+                break;
+        }
+    }
+
+    setInputRefs(refs = []) {
+        if (refs.length !== 0) {
+            const [ref_1, ref_2, ref_3, ref_4] = refs;
+            this.projectInput = ref_1;
+            this.episodesInput = ref_2;
+            this.charactersInput = ref_3;
+            this.linesInput = ref_4;
+        }
     }
     
     // Callback method for components to update project property tate
@@ -99,14 +158,16 @@ export default class App extends React.Component {
             {line: this.state.lines,           data: list_lines      }
         ]
         
-        // Determine if new search is valid
+        // Determine if new search is only white space
         const re_space = new RegExp('^ *$');
         const valid_search = (re_space.test(this.state.projects))
                             && (re_space.test(this.state.characters))
                             && (re_space.test(this.state.episodes))
                             && (re_space.test(this.state.lines));
 
-        if (new_query) {
+        // TODO: Test if current user input is the same as previous inputs
+
+        if (new_query && !valid_search) {
 
             // Parse and seperate user options
             for (const i of user_input) {
@@ -159,26 +220,32 @@ export default class App extends React.Component {
         
         // Make query to the API
         try {
-            console.log('Making call to API with href:', qry_href);
-            const qry_response = await api.get(qry_href);
+            if (!valid_search) console.log('Making call to API with href:', qry_href);
+            const qry_response = ((!valid_search)
+                ? await api.get(qry_href)
+                : { status: 0 }
+            );
 
+            // TODO: Cancel search if no valid input parameters were passed
             // TODO: Various response validation before setting results
             // TODO: Set UI to loading state for potential long response times from API
 
             // Check if data is valid and store relevant data in payload
             const qry_data = ((qry_response.status === 200)
                 ? qry_response.data
-                : result_default
+                : result_default.data
             );
 
             const results = {
                 query: qry_href,
                 query_params: [list_projects, eps_sequence, list_characters, list_lines, qry_offset],
-                data: qry_response.data
+                data: qry_data
             }
 
             // Set state for results
-            this.setState({ result: results });
+            this.setState({result: results});
+            if (qry_response.status === 200) this.setState({successful_results: true});
+            else this.setState({successful_results: false});
         } catch (e) {
             // TODO: handle failed query in UI
             console.error(`[ERROR] query to API failed with message: ${e}`);
@@ -187,32 +254,70 @@ export default class App extends React.Component {
     }
     
     // Method for clearing search fields
-    clearSearch() {
+    clearSearch(clear_results = true) {
         this.setState({
             projects: '',
             characters: '',
             episodes: '',
-            lines: '',
-            page: 0,
-            result: result_default
+            lines: ''
         });
+
+        if (clear_results) {
+            this.setState({
+                page: 0,
+                result: result_default
+            });
+        }
     }
 
     componentDidMount() {
+        // Listen for shortcuts
         window.addEventListener('keydown', (e) => {
+            // console.log(e.key);
+            // Store state for currently pressed button
+            this.setState({ btn_last_pressed: e.key });
+            
+            // Get modifier state
             const modifier_key = (window.navigator.platform === 'Win32') ? e.altKey : e.metaKey;
+            const shift_key = e.shiftKey;
+
+            // Make a line search on Ctrl/Cmd + Enter
             if (e.key === 'Enter' && modifier_key) {
                 this.lineSearch(true);
             }
-
+            
+            // Change results to previous page on Ctrl/Cmd + Left
             if (e.key === 'ArrowLeft' && modifier_key) {
                 this.offsetPage(-1);
             }
-
+            
+            // Change results to next page on Ctrl/Cmd + Right
             if (e.key === 'ArrowRight' && modifier_key) {
                 this.offsetPage(1);
             }
+            
+            // Clear search fields on 1x Escape
+            if (e.key === 'Escape') {
+                // TODO: Only clear field for currently focused input field
+                this.clearSearch(false);
+            }
+
+            // Clear clear search results on 2x Escape
+            if (e.key === 'Escape' && this.state.btn_last_pressed === 'Escape') {
+                this.clearSearch(true);
+            }
+
+            // Navigate left to right on Shift + Tab
+            if (e.key === 'Tab' && !shift_key) {
+                e.preventDefault();
+                this.toggleTextInput(1);
+            } else if (e.key == 'Tab' && shift_key) {
+                e.preventDefault();
+                this.toggleTextInput(-1);
+            }
+
         });
+
     }
 
     componentWillUnmount() {
@@ -222,16 +327,30 @@ export default class App extends React.Component {
     }
 
     componentDidUpdate(prev_props, prev_state) {
+
     }
 
     render() {
+        // Handle background color based on query results
+        let backgroundColor = '#4da4f6';
+        const are_fields_empty = this.state.projects === ''
+                                && this.state.characters === ''
+                                && this.state.episodes === ''
+                                && this.state.lines === ''
+                                && !this.state.successful_results
+                                && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] === 0;
+
+        if (!are_fields_empty && this.state.successful_results && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] > 0) backgroundColor = '#007e00';
+        else if (!are_fields_empty && this.state.successful_results && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] <= 0) backgroundColor = '#ff572d';
+
         return (
-            <div style={this.state.ui_style} className='App'>
+            <div style={{ backgroundColor: backgroundColor }} className='App'>
                 <h1 className='header'>AAP Lore</h1>
                 <Searchbar
                     searchCallback={this.lineSearch.bind(this)}
                     clearCallback={this.clearSearch.bind(this)}
                     updateFieldCallback={this.updateFieldState.bind(this)}
+                    setRefCallback={this.setInputRefs.bind(this)}
                     project={this.state.projects}
                     character={this.state.characters}
                     episode={this.state.episodes}
@@ -244,15 +363,13 @@ export default class App extends React.Component {
                     searchCallback={this.lineSearch.bind(this)}
                     searchResult={this.state.result}
                 />
-                {
-                    <TablePagination
-                        className='pagination-bar'
-                        results={this.state.result}
-                        page={this.state.page}
-                        rowsPerPage={this.state.rows_per_page}
-                        updatePageCallback={this.offsetPage.bind(this)}
-                    />
-                }
+                <TablePagination
+                    className='pagination-bar'
+                    results={this.state.result}
+                    page={this.state.page}
+                    rowsPerPage={this.state.rows_per_page}
+                    updatePageCallback={this.offsetPage.bind(this)}
+                />
             </div>
         );
     }

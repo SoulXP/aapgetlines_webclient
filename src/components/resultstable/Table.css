@@ -7,8 +7,15 @@
     text-align: left;
 }
 
-.table-headers {
+thead.table-headers {
   font-weight: bolder;
+  background-color: none;
+  font-size: larger;
+  border-bottom: 1px solid #ffffff33;
+}
+
+tr.table-headers-row > th {
+  padding-bottom: 1em;
 }
 
 table {
@@ -26,10 +33,10 @@ tr {
   border: none;
 }
 
-tr:nth-child(odd) {
-  background-color: #333333;
+tr.result-row:nth-child(odd) {
+  background-color: #ffffff33;
 }
 
-tr:nth-child(even) {
-  background-color: #454545;
+tr.result-row:nth-child(even) {
+  background-color: #8a8a8a33;
 }

@@ -31,10 +31,8 @@ export default function TablePagination({results, page, rowsPerPage, updatePageC
         display = (<>
             <span>Page {page + 1} of {total_page + 1}</span>
             <br/>
-            <ThemeProvider theme={btn_theme}>
-                <IconButton variant='outlined' onClick={(e) => { e.preventDefault(); updatePageCallback(-1); }}><ArrowBack/></IconButton>
-                <IconButton variant='outlined' onClick={(e) => { e.preventDefault(); updatePageCallback(1); }}><ArrowForward/></IconButton>
-            </ThemeProvider>
+            <IconButton variant='outlined' onClick={(e) => { e.preventDefault(); updatePageCallback(-1); }}><ArrowBack/></IconButton>
+            <IconButton variant='outlined' onClick={(e) => { e.preventDefault(); updatePageCallback(1); }}><ArrowForward/></IconButton>
         </>);
     }
 

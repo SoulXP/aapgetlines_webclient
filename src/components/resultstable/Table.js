@@ -24,7 +24,7 @@ export default function Table({page, rowsPerPage, searchResult}) {
         const tc_length = float_to_tc((found[API_RESULT_KEYS.TIMECODE][1] - found[API_RESULT_KEYS.TIMECODE][0]), found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
         
         return (
-            <tr>
+            <tr className='result-row'>
                 <td>{found[API_RESULT_KEYS.PROJECT]}</td>
                 <td>{found[API_RESULT_KEYS.SEGMENT]}</td>
                 <td>{found[API_RESULT_KEYS.CHARACTER]}</td>
@@ -39,15 +39,15 @@ export default function Table({page, rowsPerPage, searchResult}) {
     return (
         <div className='table'>
             <table>
-                <thead>
-                    <tr className='table-headers'>
+                <thead className='table-headers'>
+                    <tr className='table-headers-row'>
                         <th>Project</th>
                         <th>Episode</th>
                         <th>Character</th>
                         <th>TC In</th>
                         <th>TC Out</th>
-                        <th>Cue Length</th>
-                        <th>Line</th>
+                        <th>Length</th>
+                        <th style={{ width: '66%' }}>Line</th>
                     </tr>
                 </thead>
                 <tbody className='table-text'>
