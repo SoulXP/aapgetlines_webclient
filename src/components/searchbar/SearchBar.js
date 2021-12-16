@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import './SearchBar.css';
 
-export default function Searchbar({ searchCallback, clearCallback, updateFieldCallback, setRefCallback, project, character, episode, line }) {
+export default function Searchbar({ updateFieldCallback, setRefCallback, project, character, episode, line }) {
     // TODO: implement input tokenization for user input during search query
 
     // Create references to input fields for DOM control of cursor

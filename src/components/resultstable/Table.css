@@ -1,6 +1,7 @@
 .table {
     width: 100%;
     margin: 0.8em 0 0.8em 0;
+    overflow: scroll;
 }
 
 .table-text {
@@ -27,6 +28,50 @@ th,
 td {
     font-weight: lighter;
     padding: 5px;
+}
+
+td.result-row-single,
+td.result-row-single-long {
+  background-color: transparent;
+  transition: width 800ms ease-in-out;
+}
+
+td.result-row-single:hover,
+td.result-row-single-long:hover {
+  width: 100%;
+}
+
+td.result-row-single {
+  height: 1em;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.row-single-content,
+.row-single-content-nowrap {
+  position: relative;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  z-index: -1;
+}
+
+.result-row-single-long {
+  width: 66%;
+}
+
+.row-single-content-nowrap {
+  max-width: 90%;
+}
+
+.row-single-content {
+  max-width: 100%;
+}
+
+.row-single-spacer {
+  height: 0;
+  overflow: hidden;
 }
 
 tr {

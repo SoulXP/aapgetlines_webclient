@@ -44,17 +44,18 @@ export default class App extends React.Component {
                 offset: 0
             },
             result: result_default,
+            result_next: result_default,
+
+            // For prefetching data
+            prefetch_ready: false,
+            result_prefetch_1: result_default,
+            result_prefetch_2: result_default,
 
             // Pagination variables
             page: 0,
             // rows_per_page: 10,
-            rows_per_page: Math.floor((0.84 * window.screen.height) / 45), // 84% is a magic number for now
+            rows_per_page: Math.floor((0.84 * window.screen.height) / 40), // 84% is a magic number for now
             row_size: 10,
-
-            // UI styling variables
-            ui_style: {
-                backgroundColor: '#333333'
-            },
 
             // User environment variables
             user_screen_width: window.screen.width,
@@ -88,21 +89,11 @@ export default class App extends React.Component {
 
         // Set focus according to state
         switch (this.state.current_input_focus) {
-            case 0:
-                this.projectInput.current.focus();
-                break;
-            case 1:
-                this.charactersInput.current.focus();
-                break;
-            case 2:
-                this.episodesInput.current.focus();
-                break;
-            case 3:
-                this.linesInput.current.focus();
-                break;
-            default:
-                console.error('[ERROR] no reference to input field was set');
-                break;
+            case 0: this.projectInput.current.focus(); break;
+            case 1: this.charactersInput.current.focus(); break;
+            case 2: this.episodesInput.current.focus(); break;
+            case 3: this.linesInput.current.focus(); break;
+            default: console.error('[ERROR] no reference to input field was set'); break;
         }
     }
 
@@ -124,6 +115,7 @@ export default class App extends React.Component {
     async offsetPage(offset = 0) {
         // Determine what new page number should be
         const next_page = (this.state.page + offset <= 0) ? 0 : this.state.page + offset;
+        const prefetch_offset = (offset >= 0) ? 1 : -1;
         const total_page = Math.floor(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page);
         let update_page = 0;
 
@@ -136,21 +128,48 @@ export default class App extends React.Component {
         }
 
         // Determine if new data must be fetched from API
+        // TODO: Global constant for data buffers
         const max_query = this.state.result.data[API_RESULT_KEYS.MAX_QUERY];
         const current_offset = this.state.result.data[API_RESULT_KEYS.OFFSET];
-        const new_search = Math.floor(next_page * this.state.rows_per_page / max_query) !== current_offset 
-                            || Math.floor(next_page * this.state.rows_per_page) - (current_offset * max_query) > max_query;
+        const gt_max_query = Math.floor(next_page * this.state.rows_per_page) - (current_offset * max_query) >= max_query * 2;
+        const ne_current_offset = Math.floor(next_page * this.state.rows_per_page / max_query) !== current_offset;
+        const new_search = ne_current_offset || gt_max_query;
 
         // Set new offset if new data is required
         const new_offset = (new_search) ? Math.floor(next_page * this.state.rows_per_page / max_query) : -1;
+        console.log(this.state.prefetch_ready, 'next page', next_page, 'new offset', new_offset);
         
         // Invoke callbacks with new pagination parameters
-        if (new_offset > -1) await this.lineSearch(false, new_offset);
+        if (new_offset > -1 && !this.state.prefetch_ready) {
+            console.log('Pre-fetching data from API');
+            await this.lineSearch(false, true, new_offset + prefetch_offset);
+        } else if (this.state.prefetch_ready && gt_max_query) {
+            console.log('Swapping buffers with pre-fetched data');
+            this.swapResultBuffers();
+        }
+
         this.updateFieldState('page', update_page);
     }
 
+    swapResultBuffers() {
+        // Temporarily store current results
+        // const temp_1 = this.state.result;
+        // const temp_2 = this.state.result_swap;
+
+        this.setState({
+            // Set current buffers to prefetch data
+            result: this.state.result_prefetch_1,
+            result_next: this.state.result_prefetch_2,
+
+            // Set prefetch buffers to default and update prefetch status
+            prefetch_ready: false,
+            result_prefetch_1: result_default,
+            result_prefetch_2: result_default
+        });
+    }
+
     // Callback method for preparing user search inputs and querying database
-    async lineSearch(new_query, offset = 0) {
+    async lineSearch(new_query, prefetch = false, offset = 0) {
         // TODO: Validate that at least one option was provided by user
         // Storage for parsed user input
         let list_episodes = [];
@@ -158,8 +177,16 @@ export default class App extends React.Component {
         let list_characters = (new_query) ? [] : this.state.current_query_parameters.characters;
         let list_lines = (new_query) ? [] : this.state.current_query_parameters.lines;
         let eps_sequence = (new_query) ? [] : this.state.current_query_parameters.episodes;
+
+        // Query hrefs with parameters
+        // TODO: Backwards offset for swap buffer query
         let qry_href = '';
         let qry_offset = (new_query) ? 0 : offset;
+        let qry_href_swap = '';
+        let qry_offset_swap = (new_query) ? 1 : offset + 1;
+
+        // Condition for filling swap buffer
+        let fill_swap = false;
         
         // Collect user input from form fields
         const user_input = [
@@ -179,7 +206,6 @@ export default class App extends React.Component {
         // TODO: Test if current user input is the same as previous inputs
 
         if (new_query && !valid_search) {
-
             // Parse and seperate user options
             for (const i of user_input) {
                 const k = Object.keys(i)[0];
@@ -209,13 +235,16 @@ export default class App extends React.Component {
             eps_sequence = epRangesToSequences(list_episodes);
             
             // Build the URL based on user inputs
+            // TODO: Backwards offset for swap buffer query
             qry_href = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, qry_offset);
+            qry_href_swap = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, qry_offset_swap);
 
              // Update state for current query parameters
              // Clear current results
             this.setState({
                  page: 0,
-                 results: result_default,
+                 result: result_default,
+                 result_next: result_default,
                  current_query: qry_href,
                  current_query_parameters: {
                     projects: list_projects,
@@ -226,14 +255,23 @@ export default class App extends React.Component {
                  }
             });
         } else {
+            // TODO: Backwards offset for swap buffer query
             qry_href = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, qry_offset);
+            qry_href_swap = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, qry_offset_swap);
         }
         
         // Make query to the API
         try {
             if (!valid_search) console.log('Making call to API with href:', qry_href);
             const qry_response = ((!valid_search)
-                ? await api.get(qry_href)
+            ? await api.get(qry_href)
+            : { status: 0 }
+            );
+            
+            // TODO: Conditions for filling buffer when necessary
+            if (!valid_search) console.log('Making call to API with href:', qry_href_swap);
+            const qry_response_swap = ((!valid_search)
+                ? await api.get(qry_href_swap)
                 : { status: 0 }
             );
 
@@ -247,15 +285,32 @@ export default class App extends React.Component {
                 : result_default.data
             );
 
+            const qry_data_swap = ((qry_response_swap.status === 200)
+                ? qry_response_swap.data
+                : result_default.data
+            );
+
             const results = {
                 query: qry_href,
                 query_params: [list_projects, eps_sequence, list_characters, list_lines, qry_offset],
                 data: qry_data
             }
 
+            const results_swap = {
+                query: qry_href_swap,
+                query_params: [list_projects, eps_sequence, list_characters, list_lines, qry_offset_swap],
+                data: qry_data_swap
+            }
+
             // Set state for results
-            this.setState({result: results});
-            if (qry_response.status === 200) this.setState({successful_results: true});
+            // TODO: Manage syncronisation of swap buffers
+            if (!prefetch) {
+                this.setState({result: results, result_next: results_swap});
+            } else {
+                this.setState({prefetch_ready: true, result_prefetch_1: results, result_prefetch_2: results_swap});
+            }
+
+            if (qry_response.status === 200 && qry_response_swap.status === 200) this.setState({successful_results: true});
             else this.setState({successful_results: false});
         } catch (e) {
             // TODO: handle failed query in UI
@@ -274,23 +329,23 @@ export default class App extends React.Component {
             are_fields_empty: true
         });
 
-        // if (this.state.are_fields_empty) {
-        //     this.setState({ successful_results: false });
-        // }
-
         if (clear_results) {
             this.setState({
                 page: 0,
                 result: result_default,
+                result_next: result_default,
                 current_query: '',
                 successful_results: false,
+                prefetch_ready: false,
+                result_prefetch_1: result_default,
+                result_prefetch_2: result_default
             });
         }
     }
 
     componentDidMount() {
         // Listen for shortcuts
-        window.addEventListener('keydown', (e) => {
+        window.addEventListener('keydown', async (e) => {
             // console.log(e.key);
             // console.log(this.state.btn_last_pressed);
             
@@ -300,7 +355,7 @@ export default class App extends React.Component {
 
             // Make a line search on Ctrl/Cmd + Enter
             if (e.key === 'Enter' && modifier_key) {
-                this.lineSearch(true);
+                await this.lineSearch(true);
             }
             
             // Change results to previous page on Ctrl/Cmd + Left
@@ -327,7 +382,7 @@ export default class App extends React.Component {
             }
 
             // Clear clear search results on 2x Escape
-            if (e.key === 'Escape' && this.state.btn_last_pressed == 'Escape') {
+            if (e.key === 'Escape' && this.state.btn_last_pressed === 'Escape') {
                 this.projectInput.current.focus();
                 this.setState({ current_input_focus: 0 });
             }
@@ -336,7 +391,7 @@ export default class App extends React.Component {
             if (e.key === 'Tab' && !shift_key) {
                 e.preventDefault();
                 this.toggleTextInput(1);
-            } else if (e.key == 'Tab' && shift_key) {
+            } else if (e.key === 'Tab' && shift_key) {
                 e.preventDefault();
                 this.toggleTextInput(-1);
             }
@@ -374,8 +429,6 @@ export default class App extends React.Component {
             <div style={{ backgroundColor: backgroundColor }} className='App'>
                 <h1 className='header'>AAP Lore</h1>
                 <Searchbar
-                    searchCallback={this.lineSearch.bind(this)}
-                    clearCallback={this.clearSearch.bind(this)}
                     updateFieldCallback={this.updateFieldState.bind(this)}
                     setRefCallback={this.setInputRefs.bind(this)}
                     project={this.state.projects}
@@ -389,8 +442,8 @@ export default class App extends React.Component {
                         ref={this.table}
                         page={this.state.page}
                         rowsPerPage={this.state.rows_per_page}
-                        searchCallback={this.lineSearch.bind(this)}
                         searchResult={this.state.result}
+                        searchResultSwap={this.state.result_next}
                     />
                     <TablePagination
                         className='pagination-bar'

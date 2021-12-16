@@ -1,23 +1,24 @@
-import React, { useState } from 'react';
+import React from 'react';
 import './Table.css';
-import TablePagination from './UsePagination.js'
 import { API_RESULT_KEYS } from '../../http/ApiClient.js';
 import { float_to_tc } from '../../utils/Timecode.js';
 
-export default function Table({page, rowsPerPage, searchResult}) {
+export default function Table({ page, rowsPerPage, searchResult, searchResultSwap }) {
     // Extract search result data
     const results = searchResult.data[API_RESULT_KEYS.RESULTS];
+    const results_swap = searchResultSwap.data[API_RESULT_KEYS.RESULTS];
+    const all_results = results.concat(results_swap);
     const max_query_results = searchResult.data[API_RESULT_KEYS.MAX_QUERY];
-    const total_query_results = searchResult.data[API_RESULT_KEYS.TOTAL_QUERY];
     const query_offset = searchResult.data[API_RESULT_KEYS.OFFSET];
 
     // Set start and end indexes for results list based on page number and position in current results chunk
     // TODO: Set UI to loading state for potentially long callback queries
     const index_start = (page * rowsPerPage) - (query_offset * max_query_results);
     const index_end = index_start + rowsPerPage;
+    console.log('query offset', (query_offset * max_query_results), 'length', all_results.length, 'page', page, 'rows', rowsPerPage, 'start', index_start, 'end', index_end);
     
     // Check if searchResults are valid and parse results
-    const table_data = results.slice(index_start, index_end).map((found, index) => {
+    const table_data = all_results.slice(index_start, index_end).map((found, index) => {
         // Convert timecode ticks to SMPTE frame timecode
         const tc_in = float_to_tc(found[API_RESULT_KEYS.TIMECODE][0], found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
         const tc_out = float_to_tc(found[API_RESULT_KEYS.TIMECODE][1], found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
@@ -25,13 +26,27 @@ export default function Table({page, rowsPerPage, searchResult}) {
         
         return (
             <tr key={index} className='result-row'>
-                <td>{found[API_RESULT_KEYS.PROJECT]}</td>
-                <td>{found[API_RESULT_KEYS.SEGMENT]}</td>
-                <td>{found[API_RESULT_KEYS.CHARACTER]}</td>
-                <td>{tc_in}</td>
-                <td>{tc_out}</td>
-                <td>{tc_length}</td>
-                <td>{found[API_RESULT_KEYS.LINE]}</td>
+                <td className='result-row-single'>
+                    <div className='row-single-content-nowrap'>{found[API_RESULT_KEYS.PROJECT]}</div>
+                </td>
+                <td className='result-row-single'>
+                    <div className='row-single-content'>{found[API_RESULT_KEYS.SEGMENT]}</div>
+                </td>
+                <td className='result-row-single'>
+                    <div className='row-single-content-nowrap'>{found[API_RESULT_KEYS.CHARACTER]}</div>
+                </td>
+                <td className='result-row-single'>
+                    <div className='row-single-content'>{tc_in}</div>
+                </td>
+                <td className='result-row-single'>
+                    <div className='row-single-content'>{tc_out}</div>
+                </td>
+                <td className='result-row-single'>
+                    <div className='row-single-content'>{tc_length}</div>
+                </td>
+                <td className='result-row-single-long'>
+                    <div className='row-single-content-nowrap'>{found[API_RESULT_KEYS.LINE]}</div>
+                </td>
             </tr>
         );
     });
