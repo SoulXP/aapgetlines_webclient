@@ -6,6 +6,8 @@ const N_RESOLUTION = MICROSECONDS;
 
 // TODO: Fix precision/rounding error for floats
 export function float_to_tc(n, frame_rate, tick_rate) {
+    if (n === 0) return '00:00:00:00';
+
     let h = 0.0;
     let m = 0.0;
     let s = 0.0;

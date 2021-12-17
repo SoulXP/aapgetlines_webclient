@@ -1,7 +1,7 @@
 .table {
     width: 100%;
     margin: 0.8em 0 0.8em 0;
-    overflow: scroll;
+    overflow: hidden;
 }
 
 .table-text {
@@ -36,11 +36,6 @@ td.result-row-single-long {
   transition: width 800ms ease-in-out;
 }
 
-td.result-row-single:hover,
-td.result-row-single-long:hover {
-  width: 100%;
-}
-
 td.result-row-single {
   height: 1em;
   max-width: 100%;
@@ -54,7 +49,6 @@ td.result-row-single {
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: left;
-  z-index: -1;
 }
 
 .result-row-single-long {

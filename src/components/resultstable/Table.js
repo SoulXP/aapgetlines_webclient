@@ -3,11 +3,9 @@ import './Table.css';
 import { API_RESULT_KEYS } from '../../http/ApiClient.js';
 import { float_to_tc } from '../../utils/Timecode.js';
 
-export default function Table({ page, rowsPerPage, searchResult, searchResultSwap }) {
+export default function Table({ page, rowsPerPage, searchResult }) {
     // Extract search result data
     const results = searchResult.data[API_RESULT_KEYS.RESULTS];
-    const results_swap = searchResultSwap.data[API_RESULT_KEYS.RESULTS];
-    const all_results = results.concat(results_swap);
     const max_query_results = searchResult.data[API_RESULT_KEYS.MAX_QUERY];
     const query_offset = searchResult.data[API_RESULT_KEYS.OFFSET];
 
@@ -15,10 +13,10 @@ export default function Table({ page, rowsPerPage, searchResult, searchResultSwa
     // TODO: Set UI to loading state for potentially long callback queries
     const index_start = (page * rowsPerPage) - (query_offset * max_query_results);
     const index_end = index_start + rowsPerPage;
-    console.log('query offset', (query_offset * max_query_results), 'length', all_results.length, 'page', page, 'rows', rowsPerPage, 'start', index_start, 'end', index_end);
+    console.log('query offset', (query_offset * max_query_results), 'length', results.length, 'page', page, 'rows', rowsPerPage, 'start', index_start, 'end', index_end);
     
     // Check if searchResults are valid and parse results
-    const table_data = all_results.slice(index_start, index_end).map((found, index) => {
+    const table_data = results.slice(index_start, index_end).map((found, index) => {
         // Convert timecode ticks to SMPTE frame timecode
         const tc_in = float_to_tc(found[API_RESULT_KEYS.TIMECODE][0], found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
         const tc_out = float_to_tc(found[API_RESULT_KEYS.TIMECODE][1], found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
