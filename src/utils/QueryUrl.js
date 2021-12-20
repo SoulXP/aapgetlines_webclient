@@ -1,6 +1,6 @@
 import { API_QRY_URL, API_QRY_PARAMETERS} from '../http/ApiClient.js';
 
-export default function buildQueryString(projects = [], episodes = [], characters = [], lines = [], pageNumber = 0 ) {
+export default function buildQueryString(projects = [], episodes = [], characters = [], lines = [], page = 0, offset = 0) {
     // Helpers for various delimiter types;
     const comma_delimit = (p, c) => {
         return p + ',' + c;
@@ -27,7 +27,10 @@ export default function buildQueryString(projects = [], episodes = [], character
     const add_offset = projects.length > 0 || episodes.length > 0 || characters.length > 0 || lines.length > 0;
 
     // Set offset for pagination
-    if (add_offset) urlParams.searchParams.append(`${API_QRY_PARAMETERS['OFFSET']}`,   pageNumber);
+    if (add_offset) {
+        urlParams.searchParams.append(`${API_QRY_PARAMETERS['PAGE']}`, page);
+        if (offset > 0) urlParams.searchParams.append(`${API_QRY_PARAMETERS['OFFSET']}`, offset);
+    }
 
     return urlParams.href;
 }

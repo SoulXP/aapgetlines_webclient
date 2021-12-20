@@ -7,13 +7,14 @@ export default function Table({ page, rowsPerPage, searchResult }) {
     // Extract search result data
     const results = searchResult.data[API_RESULT_KEYS.RESULTS];
     const max_query_results = searchResult.data[API_RESULT_KEYS.MAX_QUERY];
+    const query_page = searchResult.data[API_RESULT_KEYS.PAGE];
     const query_offset = searchResult.data[API_RESULT_KEYS.OFFSET];
 
     // Set start and end indexes for results list based on page number and position in current results chunk
     // TODO: Set UI to loading state for potentially long callback queries
-    const index_start = (page * rowsPerPage) - (query_offset * max_query_results);
-    const index_end = index_start + rowsPerPage;
-    console.log('query offset', (query_offset * max_query_results), 'length', results.length, 'page', page, 'rows', rowsPerPage, 'start', index_start, 'end', index_end);
+    const offset_delta = (page * rowsPerPage) - (query_page * max_query_results);
+    const index_start = (offset_delta < 0) ? 0 : offset_delta;
+    const index_end = (offset_delta + rowsPerPage > results.length) ? results.length : index_start + rowsPerPage;
     
     // Check if searchResults are valid and parse results
     const table_data = results.slice(index_start, index_end).map((found, index) => {

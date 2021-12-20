@@ -7,6 +7,7 @@ import Table from './components/resultstable/Table.js';
 import buildQueryString from './utils/QueryUrl.js';
 import { epRangesToSequences } from './components/searchbar/EpRange.js';
 import TablePagination from './components/resultstable/UsePagination';
+import { ThermostatOutlined } from '@mui/icons-material';
 
 const result_default = {
     query: '',
@@ -15,6 +16,7 @@ const result_default = {
         [API_RESULT_KEYS.TOTAL_QUERY]:   0,
         [API_RESULT_KEYS.TOTAL_RESULTS]: 0,
         [API_RESULT_KEYS.MAX_QUERY]:     API_LOCAL_DEFAULTS.MAX_QUERY,
+        [API_RESULT_KEYS.PAGE]:          0,
         [API_RESULT_KEYS.OFFSET]:        0,
         [API_RESULT_KEYS.RESULTS]:       []
     }
@@ -41,19 +43,18 @@ export default class App extends React.Component {
                 characters: [],
                 episodes: [],
                 lines: [],
+                page: 0,
                 offset: 0
             },
             result: result_default,
-            overflow_offset: 0,
             
             // For prefetching data
-            prefetch_ready: false,
-            result_prefetch_1: result_default,
+            result_prefetch: result_default,
             
             // Pagination variables
             page: 0,
-            // rows_per_page: 10,
-            rows_per_page: Math.floor((0.84 * window.screen.height) / 40), // 84% is a magic number for now
+            previous_page: 0,
+            rows_per_page: Math.floor((0.84 * window.screen.height) / 40), // 84% and 40 are magic numbers for now
             row_size: 10,
 
             // User environment variables
@@ -112,73 +113,83 @@ export default class App extends React.Component {
     }
 
     async offsetPage(offset = 0) {
-        // Determine what new page number should be
-        const next_page = (this.state.page + offset <= 0) ? 0 : this.state.page + offset;
-        const total_page = Math.floor(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page);
-        let update_page = 0;
+        // Determine new page number according to input offset
+        const next_local_page_requested = (this.state.page + offset <= 0) ? 0 : this.state.page + offset;
+        const total_local_page = Math.floor(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page);
+        let next_local_page_state = 0;
 
-        if (next_page < 0) {
-            update_page = 0;
-        } else if (next_page > total_page) {
-            update_page = this.state.page;
+        if (next_local_page_requested < 0) {
+            next_local_page_state = 0;
+        } else if (next_local_page_requested > total_local_page) {
+            next_local_page_state = this.state.page;
         } else {
-            update_page = next_page;
+            next_local_page_state = next_local_page_requested;
         }
-
-        // Determine if new data must be fetched from API
-        // TODO: Global constant for data buffers
-        const max_query = this.state.result.data[API_RESULT_KEYS.MAX_QUERY];
-        const current_offset = this.state.result.data[API_RESULT_KEYS.OFFSET];
-        const gt_half_max_query = Math.floor(next_page * this.state.rows_per_page) - (current_offset * max_query) >= Math.floor(max_query / 2);
-        const gt_max_query = Math.floor(next_page * this.state.rows_per_page) - (current_offset * max_query) + this.state.rows_per_page >= max_query;
-        const ne_current_offset = Math.floor(next_page * this.state.rows_per_page / max_query) !== current_offset;
-        const new_search = gt_half_max_query;
-
-        // Set new offset if new data is required
-        // const new_offset = (new_search) ? Math.floor(next_page * this.state.rows_per_page / max_query) : -1;
-        const new_offset = Math.floor(next_page * this.state.rows_per_page / max_query);
-        console.log(this.state.prefetch_ready, 'next page', next_page, 'new offset', new_offset);
         
-        // Invoke callbacks with new pagination parameters
-        if (gt_half_max_query && !this.state.prefetch_ready) {
+        // Pages for local current results and swap buffer results
+        const remote_max_query = this.state.result.data[API_RESULT_KEYS.MAX_QUERY];
+        const current_results_page = this.state.result.data[API_RESULT_KEYS.PAGE];
+        const current_results_offset = this.state.result.data[API_RESULT_KEYS.OFFSET];
+        const swap_results_page = this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
+        const swap_results_offset = this.state.result_prefetch.data[API_RESULT_KEYS.OFFSET];
+
+        // Determine if we've cycled up & down past the mid-way point of the remote page
+        const direction_up   = next_local_page_state * this.state.rows_per_page - (current_results_page * remote_max_query) > Math.floor(remote_max_query / 2) && this.state.page > this.state.previous_page;
+        const direction_down = next_local_page_state * this.state.rows_per_page - (current_results_page * remote_max_query) < Math.floor(remote_max_query / 2) && this.state.page < this.state.previous_page;
+
+        // Determine if we're swapping buffers
+        const ne_current_offset = Math.floor(next_local_page_state * this.state.rows_per_page / remote_max_query) !== current_results_page;
+        
+        // Create offset value for new pre-fetch query according to specified input offset and within the bounds of min/max pagination values
+        const new_offset = (Math.floor(next_local_page_state * this.state.rows_per_page / remote_max_query) + offset <= 0)
+            ? 0
+            : Math.floor(next_local_page_state * this.state.rows_per_page / remote_max_query) + offset;
+        
+        // Pre-fetch data for new page
+        if (current_results_page >= swap_results_page && direction_up || current_results_page <= swap_results_page && direction_down) {
             console.log('Pre-fetching data from API');
-            await this.lineSearch(false, true, new_offset);
-        } else if (gt_max_query && this.state.prefetch_ready) {
-            console.log('Swapping buffers with pre-fetched data');
+            // TODO: This is no longer being called asyncronously - handle case if pre-fetch failed
+            this.lineSearch(false, true, new_offset);
+        }
+        
+        // Swap buffers if we've reached the end of the current buffer
+        if (ne_current_offset) {
+            console.log('Swapping results with pre-fetched buffer');
             this.swapResultBuffers();
         }
 
-        this.updateFieldState('page', update_page);
+        // Update page state
+        this.updateFieldState('previous_page', this.state.page);
+        this.updateFieldState('page', next_local_page_state);
     }
 
     swapResultBuffers() {
         // Temporarily store current results
-        // const temp_1 = this.state.result;
+        const temp_1 = this.state.result;
         // const temp_2 = this.state.result_swap;
 
         this.setState({
             // Set current buffers to prefetch data
-            result: this.state.result_prefetch_1,
+            result: this.state.result_prefetch,
 
             // Set prefetch buffers to default and update prefetch status
-            prefetch_ready: false,
-            result_prefetch_1: result_default
+            result_prefetch: temp_1
         });
     }
 
     // Callback method for preparing user search inputs and querying database
-    async lineSearch(new_query, prefetch = false, offset = 0) {
+    async lineSearch(new_query, prefetch = false, page = 0, offset = 0) {
         // TODO: Validate that at least one option was provided by user
         // Storage for parsed user input
         let list_episodes = [];
-        let list_projects = (new_query) ? [] : this.state.current_query_parameters.projects;
+        let list_projects =   (new_query) ? [] : this.state.current_query_parameters.projects;
         let list_characters = (new_query) ? [] : this.state.current_query_parameters.characters;
-        let list_lines = (new_query) ? [] : this.state.current_query_parameters.lines;
-        let eps_sequence = (new_query) ? [] : this.state.current_query_parameters.episodes;
+        let list_lines =      (new_query) ? [] : this.state.current_query_parameters.lines;
+        let eps_sequence =    (new_query) ? [] : this.state.current_query_parameters.episodes;
 
         // Query hrefs with parameters
-        // TODO: Backwards offset for swap buffer query
         let qry_href = '';
+        let qry_page = (new_query) ? 0 : page;
         let qry_offset = (new_query) ? 0 : offset;
         
         // Collect user input from form fields
@@ -192,9 +203,9 @@ export default class App extends React.Component {
         // Determine if new search is only white space
         const re_space = new RegExp('^ *$');
         const valid_search = (re_space.test(this.state.projects))
-                            && (re_space.test(this.state.characters))
-                            && (re_space.test(this.state.episodes))
-                            && (re_space.test(this.state.lines));
+                              && (re_space.test(this.state.characters))
+                              && (re_space.test(this.state.episodes))
+                              && (re_space.test(this.state.lines));
 
         // TODO: Test if current user input is the same as previous inputs
 
@@ -229,7 +240,7 @@ export default class App extends React.Component {
             
             // Build the URL based on user inputs
             // TODO: Backwards offset for swap buffer query
-            qry_href = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, qry_offset);
+            qry_href = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, qry_page, qry_offset);
 
              // Update state for current query parameters
              // Clear current results
@@ -242,12 +253,13 @@ export default class App extends React.Component {
                     episodes: eps_sequence,
                     characters: list_characters,
                     lines: list_lines,
+                    page: qry_page,
                     offset: qry_offset
                  }
             });
         } else {
             // TODO: Backwards offset for swap buffer query
-            qry_href = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, qry_offset);
+            qry_href = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, qry_page, qry_offset);
         }
         
         // Make query to the API
@@ -270,7 +282,7 @@ export default class App extends React.Component {
 
             const results = {
                 query: qry_href,
-                query_params: [list_projects, eps_sequence, list_characters, list_lines, qry_offset],
+                query_params: [list_projects, eps_sequence, list_characters, list_lines, qry_page, qry_offset],
                 data: qry_data
             }
 
@@ -279,7 +291,7 @@ export default class App extends React.Component {
             if (!prefetch) {
                 this.setState({result: results});
             } else {
-                this.setState({prefetch_ready: true, result_prefetch_1: results});
+                this.setState({result_prefetch: results});
             }
 
             if (qry_response.status === 200) this.setState({successful_results: true});
@@ -307,9 +319,7 @@ export default class App extends React.Component {
                 result: result_default,
                 current_query: '',
                 successful_results: false,
-                prefetch_ready: false,
-                result_prefetch_1: result_default,
-                overflow_offset: 0
+                result_prefetch: result_default
             });
         }
     }

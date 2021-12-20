@@ -11,6 +11,7 @@ export const API_QRY_PARAMETERS = {
     SEGMENTS: 'eps',
     NAMES: 'names',
     LINES: 'lines',
+    PAGE: 'page',
     OFFSET: 'offset'
 }
 
@@ -19,6 +20,7 @@ export const API_RESULT_KEYS = {
     TOTAL_QUERY: 'total_query',
     TOTAL_RESULTS: 'total_results',
     MAX_QUERY: 'max_query',
+    PAGE: 'current_page',
     OFFSET: 'current_offset',
     RESULTS: 'results',
     PROJECT: 'project_name',
