@@ -1,6 +1,6 @@
 import { API_QRY_URL, API_QRY_PARAMETERS} from '../http/ApiClient.js';
 
-export default function buildQueryString(projects = [], episodes = [], characters = [], lines = [], page = 0, offset = 0) {
+export default function buildQueryString(projects = [], episodes = [], characters = [], lines = [], limit = 0, page = 0, offset = 0) {
     // Helpers for various delimiter types;
     const comma_delimit = (p, c) => {
         return p + ',' + c;
@@ -22,7 +22,10 @@ export default function buildQueryString(projects = [], episodes = [], character
     if (episodes_compiled !== '')   urlParams.searchParams.append(`${API_QRY_PARAMETERS['SEGMENTS']}`, episodes.reduce(comma_delimit));     
     if (characters_compiled !== '') urlParams.searchParams.append(`${API_QRY_PARAMETERS['NAMES']}`,    characters.reduce(comma_delimit));   
     if (lines_compiled !== '')      urlParams.searchParams.append(`${API_QRY_PARAMETERS['LINES']}`,    lines.reduce(ampersands_delimit));   
-
+    
+    // Set limit for query
+    if (limit > 0) urlParams.searchParams.append(`${API_QRY_PARAMETERS['LIMIT']}`, limit);
+    
     // Control variable for adding offset to query
     const add_offset = projects.length > 0 || episodes.length > 0 || characters.length > 0 || lines.length > 0;
 
@@ -31,6 +34,7 @@ export default function buildQueryString(projects = [], episodes = [], character
         urlParams.searchParams.append(`${API_QRY_PARAMETERS['PAGE']}`, page);
         if (offset > 0) urlParams.searchParams.append(`${API_QRY_PARAMETERS['OFFSET']}`, offset);
     }
+
 
     return urlParams.href;
 }

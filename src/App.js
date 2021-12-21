@@ -18,6 +18,7 @@ const result_default = {
         [API_RESULT_KEYS.MAX_QUERY]:     API_LOCAL_DEFAULTS.MAX_QUERY,
         [API_RESULT_KEYS.PAGE]:          0,
         [API_RESULT_KEYS.OFFSET]:        0,
+        [API_RESULT_KEYS.LIMIT]:         0,
         [API_RESULT_KEYS.RESULTS]:       []
     }
 };
@@ -44,12 +45,18 @@ export default class App extends React.Component {
                 episodes: [],
                 lines: [],
                 page: 0,
-                offset: 0
+                offset: 0,
+                limit: 0
             },
             result: result_default,
+            result_overflow : [],
+            result_offset: 0,
             
             // For prefetching data
             result_prefetch: result_default,
+
+            // For missing data due to differentials with page sizing and API max queries
+            // result_missing: result_default,
             
             // Pagination variables
             page: 0,
@@ -144,7 +151,30 @@ export default class App extends React.Component {
         const new_offset = (Math.floor(next_local_page_state * this.state.rows_per_page / remote_max_query) + offset <= 0)
             ? 0
             : Math.floor(next_local_page_state * this.state.rows_per_page / remote_max_query) + offset;
+
+        // 00011 12223 33444 55566 67778 88999 00011 
+        // ----^ ----^ ----^ ----^ ----^ ----^ ----^
         
+        // Calculate missing entries from current buffer to fill last page
+        const total_missing_buffer = this.state.rows_per_page - Math.floor((remote_max_query - this.state.result_offset) % this.state.rows_per_page);
+        const prefetch_ready = this.state.result_prefetch.data[API_RESULT_KEYS.RESULTS].length > 0;
+        const overflow_empty = this.state.result_overflow.length === 0;
+        // console.log('missing', total_missing_buffer, 'prefetch_ready', prefetch_ready, 'current lt swap', current_results_page <= swap_results_page, 'direction up', direction_up);
+        // console.log('current page', current_results_page, 'swap page', swap_results_page);
+        if (total_missing_buffer > 0
+            && overflow_empty
+            && prefetch_ready
+            && current_results_page <= swap_results_page)
+        {
+            console.log('filling overflow buffer');
+            this.setState({
+                result_overflow: this.state.result_prefetch.data[API_RESULT_KEYS.RESULTS].slice(0, total_missing_buffer),
+                result_offset: total_missing_buffer,
+            });
+
+            // console.log(this.state.result_overflow);
+        }
+
         // Pre-fetch data for new page
         if (current_results_page >= swap_results_page && direction_up || current_results_page <= swap_results_page && direction_down) {
             console.log('Pre-fetching data from API');
@@ -165,20 +195,21 @@ export default class App extends React.Component {
 
     swapResultBuffers() {
         // Temporarily store current results
-        const temp_1 = this.state.result;
+        const temp_result = this.state.result;
         // const temp_2 = this.state.result_swap;
 
         this.setState({
             // Set current buffers to prefetch data
             result: this.state.result_prefetch,
+            result_overflow: [],
 
             // Set prefetch buffers to default and update prefetch status
-            result_prefetch: temp_1
+            result_prefetch: temp_result
         });
     }
 
     // Callback method for preparing user search inputs and querying database
-    async lineSearch(new_query, prefetch = false, page = 0, offset = 0) {
+    async lineSearch(new_query, prefetch = false, page = 0, offset = 0, limit = 0) {
         // TODO: Validate that at least one option was provided by user
         // Storage for parsed user input
         let list_episodes = [];
@@ -240,7 +271,7 @@ export default class App extends React.Component {
             
             // Build the URL based on user inputs
             // TODO: Backwards offset for swap buffer query
-            qry_href = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, qry_page, qry_offset);
+            qry_href = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, 0, qry_page, qry_offset);
 
              // Update state for current query parameters
              // Clear current results
@@ -259,7 +290,7 @@ export default class App extends React.Component {
             });
         } else {
             // TODO: Backwards offset for swap buffer query
-            qry_href = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, qry_page, qry_offset);
+            qry_href = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, 0, qry_page, qry_offset);
         }
         
         // Make query to the API
@@ -317,6 +348,8 @@ export default class App extends React.Component {
             this.setState({
                 page: 0,
                 result: result_default,
+                result_overflow : [],
+                result_offset: 0,
                 current_query: '',
                 successful_results: false,
                 result_prefetch: result_default
@@ -424,6 +457,8 @@ export default class App extends React.Component {
                         page={this.state.page}
                         rowsPerPage={this.state.rows_per_page}
                         searchResult={this.state.result}
+                        overflowResult={this.state.result_overflow}
+                        resultOffset={this.state.result_offset}
                     />
                     <TablePagination
                         className='pagination-bar'

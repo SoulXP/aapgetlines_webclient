@@ -12,7 +12,8 @@ export const API_QRY_PARAMETERS = {
     NAMES: 'names',
     LINES: 'lines',
     PAGE: 'page',
-    OFFSET: 'offset'
+    OFFSET: 'offset',
+    LIMIT: 'limit'
 }
 
 // Globals for key IDs in results payload that API queries will return
@@ -22,6 +23,7 @@ export const API_RESULT_KEYS = {
     MAX_QUERY: 'max_query',
     PAGE: 'current_page',
     OFFSET: 'current_offset',
+    LIMIT: 'current_limit',
     RESULTS: 'results',
     PROJECT: 'project_name',
     CATALOGUE: 'project_catalogue',
