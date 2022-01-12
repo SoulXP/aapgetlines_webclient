@@ -49,7 +49,8 @@ export default class App extends React.Component {
                 limit: 0
             },
             result: result_default,
-            result_overflow : [],
+            result_overflow: [],
+            result_overflow_page: 0,
             result_offset: 0,
             
             // For prefetching data
@@ -114,7 +115,7 @@ export default class App extends React.Component {
         }
     }
     
-    // Callback method for components to update project property tate
+    // Callback method for components to update project property state
     updateFieldState(key, value) {
         this.setState((s,p) => ({ [key]: value }));
     }
@@ -151,37 +152,41 @@ export default class App extends React.Component {
         const new_offset = (Math.floor(next_local_page_state * this.state.rows_per_page / remote_max_query) + offset <= 0)
             ? 0
             : Math.floor(next_local_page_state * this.state.rows_per_page / remote_max_query) + offset;
-
-        // 00011 12223 33444 55566 67778 88999 00011 
-        // ----^ ----^ ----^ ----^ ----^ ----^ ----^
         
         // Calculate missing entries from current buffer to fill last page
-        const total_missing_buffer = this.state.rows_per_page - Math.floor((remote_max_query - this.state.result_offset) % this.state.rows_per_page);
+        const max_mod_pages = Math.floor(remote_max_query % this.state.rows_per_page);
+        const total_missing_buffer = this.state.rows_per_page - max_mod_pages + (max_mod_pages * current_results_page);
+        if (this.state.result_offset !== total_missing_buffer) this.setState({ result_offset: total_missing_buffer });
         const prefetch_ready = this.state.result_prefetch.data[API_RESULT_KEYS.RESULTS].length > 0;
-        const overflow_empty = this.state.result_overflow.length === 0;
+        const overflow_same = this.state.result_overflow_page === current_results_page;
         // console.log('missing', total_missing_buffer, 'prefetch_ready', prefetch_ready, 'current lt swap', current_results_page <= swap_results_page, 'direction up', direction_up);
         // console.log('current page', current_results_page, 'swap page', swap_results_page);
+
+         // Pre-fetch data for new page
+         if (current_results_page >= swap_results_page && direction_up || current_results_page <= swap_results_page && direction_down) {
+            console.log('Pre-fetching data from API');
+            // TODO: This is no longer being called asyncronously - handle case if pre-fetch failed
+            // TODO: Add promise failure callback
+            this.lineSearch(false, true, new_offset).then(() => {
+                this.setState({
+                    result_overflow: this.state.result_prefetch.data[API_RESULT_KEYS.RESULTS].slice(0, this.state.result_offset),
+                    result_overflow_page: swap_results_page
+                });
+            });
+        }
+
         if (total_missing_buffer > 0
-            && overflow_empty
-            && prefetch_ready
-            && current_results_page <= swap_results_page)
+            && overflow_same
+            && prefetch_ready)
         {
-            console.log('filling overflow buffer');
             this.setState({
                 result_overflow: this.state.result_prefetch.data[API_RESULT_KEYS.RESULTS].slice(0, total_missing_buffer),
-                result_offset: total_missing_buffer,
+                result_overflow_page: swap_results_page
             });
 
             // console.log(this.state.result_overflow);
         }
 
-        // Pre-fetch data for new page
-        if (current_results_page >= swap_results_page && direction_up || current_results_page <= swap_results_page && direction_down) {
-            console.log('Pre-fetching data from API');
-            // TODO: This is no longer being called asyncronously - handle case if pre-fetch failed
-            this.lineSearch(false, true, new_offset);
-        }
-        
         // Swap buffers if we've reached the end of the current buffer
         if (ne_current_offset) {
             console.log('Swapping results with pre-fetched buffer');
@@ -196,15 +201,18 @@ export default class App extends React.Component {
     swapResultBuffers() {
         // Temporarily store current results
         const temp_result = this.state.result;
+        const temp_overflow = this.state.result.data[API_RESULT_KEYS.RESULTS].slice(0, this.state.result_offset);
         // const temp_2 = this.state.result_swap;
 
         this.setState({
             // Set current buffers to prefetch data
             result: this.state.result_prefetch,
-            result_overflow: [],
+            
+            // Set prefetch buffers to current results
+            result_prefetch: temp_result,
 
-            // Set prefetch buffers to default and update prefetch status
-            result_prefetch: temp_result
+            // Update overflow buffers with new prefetched buffer data
+            result_overflow: temp_overflow
         });
     }
 
@@ -319,10 +327,10 @@ export default class App extends React.Component {
 
             // Set state for results
             // TODO: Manage syncronisation of swap buffers
-            if (!prefetch) {
-                this.setState({result: results});
-            } else {
+            if (prefetch) {
                 this.setState({result_prefetch: results});
+            } else {
+                this.setState({result: results});
             }
 
             if (qry_response.status === 200) this.setState({successful_results: true});
@@ -349,6 +357,7 @@ export default class App extends React.Component {
                 page: 0,
                 result: result_default,
                 result_overflow : [],
+                result_overflow_page: 0,
                 result_offset: 0,
                 current_query: '',
                 successful_results: false,
@@ -430,11 +439,11 @@ export default class App extends React.Component {
         // Handle background color based on query results
         let backgroundColor = '#4da4f6';
         const are_fields_empty = this.state.projects === ''
-                                && this.state.characters === ''
-                                && this.state.episodes === ''
-                                && this.state.lines === ''
-                                && !this.state.successful_results
-                                && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] === 0;
+                                 && this.state.characters === ''
+                                 && this.state.episodes === ''
+                                 && this.state.lines === ''
+                                 && !this.state.successful_results
+                                 && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] === 0;
 
         if (!are_fields_empty && this.state.successful_results && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] > 0) backgroundColor = '#007e00';
         else if (!are_fields_empty && this.state.successful_results && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] <= 0) backgroundColor = '#ff572d';

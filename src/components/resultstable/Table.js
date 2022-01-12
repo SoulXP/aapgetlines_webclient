@@ -7,7 +7,7 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
     // Extract search result data
     const results = (overflowResult.length > 0)
         ? [...searchResult.data[API_RESULT_KEYS.RESULTS], ...overflowResult]
-        : searchResult.data[API_RESULT_KEYS.RESULTS];
+        : [...searchResult.data[API_RESULT_KEYS.RESULTS]];
     // console.log('length', overflowResult.length);
 
     const max_query_results = searchResult.data[API_RESULT_KEYS.MAX_QUERY];
@@ -16,10 +16,9 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
     // Set start and end indexes for results list based on page number and position in current results chunk
     // TODO: Set UI to loading state for potentially long callback queries
     const offset_delta = (page * rowsPerPage) - (query_page * max_query_results);
-    const index_start = (offset_delta < 0) ? 0 : offset_delta;
-    const index_end = (index_start >= results.length) ? results.length : index_start + rowsPerPage;
-    // console.log('size', results.length, 'start', index_start, 'end', index_end, 'span', (index_end - index_start), 'remain', (results.length - index_end));
-    // console.log(results);
+    const index_start = (offset_delta < 0) ? resultOffset : offset_delta;
+    const index_end = (index_start + rowsPerPage >= results.length) ? results.length : index_start + rowsPerPage;
+    // console.log('page', page, 'rows', rowsPerPage, 'query page', query_page, 'max query', max_query_results, 'size', results.length, 'start', index_start, 'end', index_end, 'span', (index_end - index_start));
     
     // Check if searchResults are valid and parse results
     const table_data = results.slice(index_start, index_end).map((found, index) => {
