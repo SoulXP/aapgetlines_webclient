@@ -17,11 +17,12 @@ thead.table-headers {
 
 tr.table-headers-row > th {
   padding-bottom: 1em;
+  padding-inline: 5px;
 }
 
 table {
     width: 100%;
-    font-size: 1rem;
+    font-size: 0.9em;
 }
 
 th,
@@ -78,4 +79,10 @@ tr.result-row:nth-child(odd) {
 
 tr.result-row:nth-child(even) {
   background-color: #8a8a8a33;
+}
+
+.header-title-wrapper > th {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-evenly;
 }

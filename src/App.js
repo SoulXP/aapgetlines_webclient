@@ -23,6 +23,11 @@ const result_default = {
     }
 };
 
+// TODO: Formalize this function
+function total_rows() {
+    return Math.floor((window.innerHeight - 288) / 32); // 288 is the total height of all other document elements, 30 is height of each row + border
+}
+
 export default class App extends React.Component {
     constructor(props) {
         // Call parent constructor
@@ -62,7 +67,7 @@ export default class App extends React.Component {
             // Pagination variables
             page: 0,
             previous_page: 0,
-            rows_per_page: Math.floor((0.84 * window.screen.height) / 40), // 84% and 40 are magic numbers for now
+            rows_per_page: total_rows(),
             row_size: 10,
 
             // User environment variables
@@ -137,9 +142,7 @@ export default class App extends React.Component {
         // Pages for local current results and swap buffer results
         const remote_max_query = this.state.result.data[API_RESULT_KEYS.MAX_QUERY];
         const current_results_page = this.state.result.data[API_RESULT_KEYS.PAGE];
-        const current_results_offset = this.state.result.data[API_RESULT_KEYS.OFFSET];
         const swap_results_page = this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
-        const swap_results_offset = this.state.result_prefetch.data[API_RESULT_KEYS.OFFSET];
 
         // Determine if we've cycled up & down past the mid-way point of the remote page
         const direction_up   = next_local_page_state * this.state.rows_per_page - (current_results_page * remote_max_query) > Math.floor(remote_max_query / 2) && this.state.page > this.state.previous_page;
@@ -156,15 +159,13 @@ export default class App extends React.Component {
         // Calculate missing entries from current buffer to fill last page
         const max_mod_pages = Math.floor(remote_max_query % this.state.rows_per_page);
         const total_missing_buffer = this.state.rows_per_page - max_mod_pages + (max_mod_pages * current_results_page);
-        if (this.state.result_offset !== total_missing_buffer) this.setState({ result_offset: total_missing_buffer });
-        const prefetch_ready = this.state.result_prefetch.data[API_RESULT_KEYS.RESULTS].length > 0;
-        const overflow_same = this.state.result_overflow_page === current_results_page;
-        // console.log('missing', total_missing_buffer, 'prefetch_ready', prefetch_ready, 'current lt swap', current_results_page <= swap_results_page, 'direction up', direction_up);
-        // console.log('current page', current_results_page, 'swap page', swap_results_page);
 
-         // Pre-fetch data for new page
-         if (current_results_page >= swap_results_page && direction_up || current_results_page <= swap_results_page && direction_down) {
+        if (this.state.result_offset !== total_missing_buffer) this.setState({ result_offset: total_missing_buffer });
+
+         // Pre-fetch data for new page and fill overflow buffer
+         if (current_results_page >= swap_results_page && direction_up || current_results_page <= swap_results_page && direction_down && (current_results_page !== 0 && swap_results_page !== 0)) {
             console.log('Pre-fetching data from API');
+            console.log('current page', current_results_page,'swap page', swap_results_page)
             // TODO: This is no longer being called asyncronously - handle case if pre-fetch failed
             // TODO: Add promise failure callback
             this.lineSearch(false, true, new_offset).then(() => {
@@ -175,6 +176,10 @@ export default class App extends React.Component {
             });
         }
 
+        // Fill overflow buffer when empty and prefetch data is available
+        const prefetch_ready = this.state.result_prefetch.data[API_RESULT_KEYS.RESULTS].length > 0;
+        const overflow_same = this.state.result_overflow_page === current_results_page;
+
         if (total_missing_buffer > 0
             && overflow_same
             && prefetch_ready)
@@ -183,8 +188,6 @@ export default class App extends React.Component {
                 result_overflow: this.state.result_prefetch.data[API_RESULT_KEYS.RESULTS].slice(0, total_missing_buffer),
                 result_overflow_page: swap_results_page
             });
-
-            // console.log(this.state.result_overflow);
         }
 
         // Swap buffers if we've reached the end of the current buffer
@@ -202,7 +205,6 @@ export default class App extends React.Component {
         // Temporarily store current results
         const temp_result = this.state.result;
         const temp_overflow = this.state.result.data[API_RESULT_KEYS.RESULTS].slice(0, this.state.result_offset);
-        // const temp_2 = this.state.result_swap;
 
         this.setState({
             // Set current buffers to prefetch data
@@ -379,6 +381,7 @@ export default class App extends React.Component {
             // Make a line search on Ctrl/Cmd + Enter
             if (e.key === 'Enter' && modifier_key) {
                 await this.lineSearch(true);
+                console.log('height', window.innerHeight, 'total rows', this.state.rows_per_page);
             }
             
             // Change results to previous page on Ctrl/Cmd + Left
@@ -423,10 +426,27 @@ export default class App extends React.Component {
             this.setState({ btn_last_pressed: e.key });
         });
 
+        // Window resizing event listener
+        window.addEventListener('resize', (e) => {
+            // Handle total row change
+            if (this.state.rows_per_page !== total_rows()) {
+                this.setState({ rows_per_page: total_rows() });
+                if (this.state.page > Math.floor(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page)) {
+                    this.setState({
+                        page: Math.floor(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page),
+                        previous_page: Math.floor(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page) - 1
+                    });
+                }
+            }
+        });
     }
 
     componentWillUnmount() {
         window.removeEventListener('keydown', (e) => {
+            // TODO
+        });
+
+        window.removeEventListener('resize', (e) => {
             // TODO
         });
     }
