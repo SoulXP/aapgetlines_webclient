@@ -42,7 +42,7 @@ export const API_LOCAL_DEFAULTS = {
 // Axios http client instance, configured for GET requests to API line search endpoint
 export const api = axios.create({ 
     baseURL: `${API_QRY_URL}`,
-    timeout: 5000,
+    timeout: 10000,
     method: 'get',
     responseType: 'json'
  });

@@ -7,7 +7,7 @@ import Table from './components/resultstable/Table.js';
 import buildQueryString from './utils/QueryUrl.js';
 import { epRangesToSequences } from './components/searchbar/EpRange.js';
 import TablePagination from './components/resultstable/UsePagination';
-import { ThermostatOutlined } from '@mui/icons-material';
+import { ThreeDRotationSharp } from '@mui/icons-material';
 
 const result_default = {
     query: '',
@@ -53,6 +53,8 @@ export default class App extends React.Component {
                 offset: 0,
                 limit: 0
             },
+
+            // Buffer and control variables for managing results from API
             result: result_default,
             result_overflow: [],
             result_overflow_page: 0,
@@ -61,18 +63,14 @@ export default class App extends React.Component {
             // For prefetching data
             result_prefetch: result_default,
 
-            // For missing data due to differentials with page sizing and API max queries
-            // result_missing: result_default,
+            // Loading control variables for API queries
+            awaiting_results: false,
             
             // Pagination variables
             page: 0,
             previous_page: 0,
             rows_per_page: total_rows(),
             row_size: 10,
-
-            // User environment variables
-            user_screen_width: window.screen.width,
-            user_screen_height: window.screen.height,
 
             // Key-stroke state
             btn_last_pressed: ''
@@ -83,7 +81,6 @@ export default class App extends React.Component {
         this.episodesInput = React.createRef();
         this.charactersInput = React.createRef();
         this.linesInput = React.createRef();
-        this.table = React.createRef();
     }
 
     toggleTextInput(direction = 1) {
@@ -299,12 +296,15 @@ export default class App extends React.Component {
                  }
             });
         } else {
-            // TODO: Backwards offset for swap buffer query
             qry_href = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, 0, qry_page, qry_offset);
         }
         
         // Make query to the API
         try {
+            // Set flag for pending results from API if current buffer is empty
+            console.log('load state', this.state.result.data[API_RESULT_KEYS.RESULTS].length <= 0 && !prefetch);
+            if (this.state.result.data[API_RESULT_KEYS.RESULTS].length <= 0 && !prefetch) this.setState({ awaiting_results: true });
+
             if (!valid_search) console.log('Making call to API with href:', qry_href);
             const qry_response = ((!valid_search)
                 ? await api.get(qry_href)
@@ -314,19 +314,19 @@ export default class App extends React.Component {
             // TODO: Cancel search if no valid input parameters were passed
             // TODO: Various response validation before setting results
             // TODO: Set UI to loading state for potential long response times from API
-
+            
             // Check if data is valid and store relevant data in payload
             const qry_data = ((qry_response.status === 200)
                 ? qry_response.data
                 : result_default.data
             );
-
+            
             const results = {
                 query: qry_href,
                 query_params: [list_projects, eps_sequence, list_characters, list_lines, qry_page, qry_offset],
                 data: qry_data
             }
-
+            
             // Set state for results
             // TODO: Manage syncronisation of swap buffers
             if (prefetch) {
@@ -334,14 +334,19 @@ export default class App extends React.Component {
             } else {
                 this.setState({result: results});
             }
-
+            
             if (qry_response.status === 200) this.setState({successful_results: true});
             else this.setState({successful_results: false});
+
+            // Reset flag for pending results from API
+            this.setState({ awaiting_results: false });
         } catch (e) {
             // TODO: handle failed query in UI
             console.error(`[ERROR] query to API failed with message: ${e}`);
         }
-        
+
+        // Reset flag for pending results from API
+        if (!this.state.awaiting_results) this.setState({ awaiting_results: false });
     }
     
     // Method for clearing search fields
@@ -363,7 +368,8 @@ export default class App extends React.Component {
                 result_offset: 0,
                 current_query: '',
                 successful_results: false,
-                result_prefetch: result_default
+                result_prefetch: result_default,
+                awaiting_results: false
             });
         }
     }
@@ -381,7 +387,6 @@ export default class App extends React.Component {
             // Make a line search on Ctrl/Cmd + Enter
             if (e.key === 'Enter' && modifier_key) {
                 await this.lineSearch(true);
-                console.log('height', window.innerHeight, 'total rows', this.state.rows_per_page);
             }
             
             // Change results to previous page on Ctrl/Cmd + Left
@@ -482,12 +487,12 @@ export default class App extends React.Component {
                 />
                 <div className='table-wrapper'>
                     <Table
-                        ref={this.table}
                         page={this.state.page}
                         rowsPerPage={this.state.rows_per_page}
                         searchResult={this.state.result}
                         overflowResult={this.state.result_overflow}
                         resultOffset={this.state.result_offset}
+                        loadingState={this.state.awaiting_results}
                     />
                     <TablePagination
                         className='pagination-bar'

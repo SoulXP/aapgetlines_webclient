@@ -1,11 +1,12 @@
 import React from 'react';
 import './Table.css';
 import { API_RESULT_KEYS } from '../../http/ApiClient.js';
-import { IconButton } from "@mui/material";
+import { IconButton } from '@mui/material';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import LoadingButton from '@mui/lab/LoadingButton';
 import { float_to_tc } from '../../utils/Timecode.js';
 
-export default function Table({ page, rowsPerPage, searchResult, overflowResult, resultOffset }) {
+export default function Table({ page, rowsPerPage, searchResult, overflowResult, resultOffset, loadingState }) {
     // Extract search result data
     const results = (overflowResult.length > 0)
         ? [...searchResult.data[API_RESULT_KEYS.RESULTS], ...overflowResult]
@@ -61,13 +62,13 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
             <table>
                 <thead className='table-headers'>
                     <tr className='table-headers-row'>
-                        <th><span>Project</span><IconButton variant='outlined' size='small' disableRipple='true'><ArrowDropDownIcon/></IconButton></th>
-                        <th><span>Episode</span><IconButton variant='outlined' size='small' disableRipple='true'><ArrowDropDownIcon/></IconButton></th>
-                        <th><span>Character</span><IconButton variant='outlined' size='small' disableRipple='true'><ArrowDropDownIcon/></IconButton></th>
-                        <th><span>TC In</span><IconButton variant='outlined' size='small' disableRipple='true'><ArrowDropDownIcon/></IconButton></th>
-                        <th><span>TC Out</span><IconButton variant='outlined' size='small' disableRipple='true'><ArrowDropDownIcon/></IconButton></th>
-                        <th><span>Length</span><IconButton variant='outlined' size='small' disableRipple='true'><ArrowDropDownIcon/></IconButton></th>
-                        <th style={{ width: '66%' }}><span>Line</span><IconButton variant='outlined' size='small' disableRipple='true'><ArrowDropDownIcon/></IconButton></th>
+                        <th><span>Project</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
+                        <th><span>Episode</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
+                        <th><span>Character</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
+                        <th><span>TC In</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
+                        <th><span>TC Out</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
+                        <th><span>Length</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
+                        <th style={{ width: '66%' }}><span>Line</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
                     </tr>
                 </thead>
                 <tbody className='table-text'>
@@ -75,6 +76,8 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
                         table_data.length > 0
                         &&
                         table_data
+                        ||
+                        <LoadingButton variant='text' loading={loadingState} disabled={false}/>
                     }
                 </tbody>
             </table>
