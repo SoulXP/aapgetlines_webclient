@@ -7,7 +7,6 @@ import Table from './components/resultstable/Table.js';
 import buildQueryString from './utils/QueryUrl.js';
 import { epRangesToSequences } from './components/searchbar/EpRange.js';
 import TablePagination from './components/resultstable/UsePagination';
-import { ThreeDRotationSharp } from '@mui/icons-material';
 
 const result_default = {
     query: '',
@@ -125,12 +124,12 @@ export default class App extends React.Component {
     async offsetPage(offset = 0) {
         // Determine new page number according to input offset
         const next_local_page_requested = (this.state.page + offset <= 0) ? 0 : this.state.page + offset;
-        const total_local_page = Math.floor(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page);
+        const total_local_page = Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page);
         let next_local_page_state = 0;
 
         if (next_local_page_requested < 0) {
             next_local_page_state = 0;
-        } else if (next_local_page_requested > total_local_page) {
+        } else if (next_local_page_requested >= total_local_page) {
             next_local_page_state = this.state.page;
         } else {
             next_local_page_state = next_local_page_requested;
@@ -198,20 +197,78 @@ export default class App extends React.Component {
         this.updateFieldState('page', next_local_page_state);
     }
 
-    swapResultBuffers() {
+    async updateBuffers() {
+        console.log('awaiting results', this.state.awaiting_results);
+        if (!this.state.awaiting_results) {
+            // Current page information
+            const current_remote_page = this.state.result.data[API_RESULT_KEYS.PAGE];
+            const current_swap_remote_page = this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
+            const required_remote_page = Math.floor(this.state.page * this.state.rows_per_page / this.state.result.data[API_RESULT_KEYS.MAX_QUERY]);
+    
+            // Check if required page is same as current page
+            const ne_local_remote_page = required_remote_page !== current_remote_page;
+    
+            // Check if required data is present in swap buffer
+            const ne_required_page_in_swap = required_remote_page !== current_swap_remote_page;
+    
+            if (ne_local_remote_page) {
+                const new_offset = Math.max(0, required_remote_page);
+    
+                console.log('new page', new_offset);
+    
+                // Fill primary results buffer with new page
+                if (ne_required_page_in_swap) {
+                    console.log('resize new search');
+                    await this.lineSearch(false, false, new_offset);
+                } else {
+                    console.log('resize swap');
+                    this.swapResultBuffers(true);
+                }
+
+                // Fill swap buffer with closest next page
+                const closest_swap_page = (this.state.page * this.state.rows_per_page - (this.state.result.data[API_RESULT_KEYS.PAGE] * this.state.result.data[API_RESULT_KEYS.MAX_QUERY]) >= Math.floor(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] / 2))
+                ? Math.min(Math.ceil(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] / this.state.rows_per_page), this.state.result.data[API_RESULT_KEYS.PAGE] + 1)
+                : Math.max(0, this.state.result.data[API_RESULT_KEYS.PAGE] - 1);
+            
+                const ne_required_swap_page = Math.floor(this.state.page * this.state.rows_per_page / this.state.result_prefetch.data[API_RESULT_KEYS.MAX_QUERY]) !== this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
+                if (ne_required_swap_page) {
+                    console.log('new swap page', closest_swap_page);
+                    await this.lineSearch(false, true, closest_swap_page);
+                }
+
+                // Update overflow buffer with new swap buffer
+                const max_mod_pages = Math.floor(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] % this.state.rows_per_page);
+                const total_missing_buffer = this.state.rows_per_page - max_mod_pages + (max_mod_pages * this.state.result.data[API_RESULT_KEYS.PAGE]);
+
+                if (total_missing_buffer > 0) {
+                    this.setState({
+                        result_overflow: this.state.result_prefetch.data[API_RESULT_KEYS.RESULTS].slice(0, total_missing_buffer),
+                        result_overflow_page: this.state.result_prefetch.data[API_RESULT_KEYS.PAGE]
+                    });
+                } else {
+                    this.setState({
+                        result_overflow: [],
+                        result_overflow_page: 0
+                    });
+                }
+            }
+        }
+    }
+
+    swapResultBuffers(reset_overflow = false) {
         // Temporarily store current results
         const temp_result = this.state.result;
-        const temp_overflow = this.state.result.data[API_RESULT_KEYS.RESULTS].slice(0, this.state.result_offset);
+        const temp_overflow = (reset_overflow) ? [] : this.state.result.data[API_RESULT_KEYS.RESULTS].slice(0, this.state.result_offset);
 
         this.setState({
+            // Update overflow buffers with new prefetched buffer data
+            result_overflow: temp_overflow,
+
             // Set current buffers to prefetch data
             result: this.state.result_prefetch,
             
             // Set prefetch buffers to current results
-            result_prefetch: temp_result,
-
-            // Update overflow buffers with new prefetched buffer data
-            result_overflow: temp_overflow
+            result_prefetch: temp_result
         });
     }
 
@@ -302,7 +359,7 @@ export default class App extends React.Component {
         // Make query to the API
         try {
             // Set flag for pending results from API if current buffer is empty
-            console.log('load state', this.state.result.data[API_RESULT_KEYS.RESULTS].length <= 0 && !prefetch);
+            // console.log('load state', this.state.result.data[API_RESULT_KEYS.RESULTS].length <= 0 && !prefetch);
             if (this.state.result.data[API_RESULT_KEYS.RESULTS].length <= 0 && !prefetch) this.setState({ awaiting_results: true });
 
             if (!valid_search) console.log('Making call to API with href:', qry_href);
@@ -335,18 +392,15 @@ export default class App extends React.Component {
                 this.setState({result: results});
             }
             
-            if (qry_response.status === 200) this.setState({successful_results: true});
-            else this.setState({successful_results: false});
+            if (qry_response.status === 200) this.setState({ successful_results: true });
+            else this.setState({ successful_results: false });
 
             // Reset flag for pending results from API
-            this.setState({ awaiting_results: false });
+            if (this.state.awaiting_results) this.setState({ awaiting_results: false });
         } catch (e) {
             // TODO: handle failed query in UI
             console.error(`[ERROR] query to API failed with message: ${e}`);
         }
-
-        // Reset flag for pending results from API
-        if (!this.state.awaiting_results) this.setState({ awaiting_results: false });
     }
     
     // Method for clearing search fields
@@ -433,15 +487,20 @@ export default class App extends React.Component {
 
         // Window resizing event listener
         window.addEventListener('resize', (e) => {
-            // Handle total row change
             if (this.state.rows_per_page !== total_rows()) {
+                // Handle total row change
                 this.setState({ rows_per_page: total_rows() });
-                if (this.state.page > Math.floor(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page)) {
+
+                // Handle new last page
+                if (this.state.page >= Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page) - 1) {
                     this.setState({
-                        page: Math.floor(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page),
-                        previous_page: Math.floor(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page) - 1
+                        page: Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page) - 1,
+                        previous_page: Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page) - 2
                     });
                 }
+
+                // Handle data in buffers according to new page sizing
+                this.updateBuffers();
             }
         });
     }

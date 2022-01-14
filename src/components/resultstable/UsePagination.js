@@ -9,12 +9,12 @@ export default function TablePagination({results, page, rowsPerPage, updatePageC
     const total_results = results.data[API_RESULT_KEYS.TOTAL_QUERY];
 
     // Variables for UI display
-    const total_page = Math.floor(total_results / rowsPerPage);
+    const total_page = Math.ceil(total_results / rowsPerPage);
     let display = (<span className='normal-text'>No Results</span>);
 
     if (total_results > 0) {
         display = (<>
-            <span>Page {page + 1} of {total_page + 1}</span>
+            <span>Page {page + 1} of {total_page}</span>
             <br/>
             <IconButton variant='outlined' onClick={(e) => { e.preventDefault(); updatePageCallback(-1); }}><ArrowBack/></IconButton>
             <IconButton variant='outlined' onClick={(e) => { e.preventDefault(); updatePageCallback(1); }}><ArrowForward/></IconButton>
