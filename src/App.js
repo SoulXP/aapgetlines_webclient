@@ -7,6 +7,7 @@ import Table from './components/resultstable/Table.js';
 import buildQueryString from './utils/QueryUrl.js';
 import { epRangesToSequences } from './components/searchbar/EpRange.js';
 import TablePagination from './components/resultstable/UsePagination';
+import OptionsButton from './components/buttons/OptionsButton.js'
 
 const result_default = {
     query: '',
@@ -22,9 +23,13 @@ const result_default = {
     }
 };
 
-// TODO: Formalize this function
-function total_rows() {
+// TODO: Formalize these functions
+function total_rows_table() {
     return Math.floor((window.innerHeight - 288) / 32); // 288 is the total height of all other document elements, 30 is height of each row + border
+}
+
+function total_height_table() {
+    return Math.floor(window.innerHeight - 238); // 288 is the total height of all other document elements, 30 is height of each row + border
 }
 
 export default class App extends React.Component {
@@ -68,12 +73,16 @@ export default class App extends React.Component {
             // Pagination variables
             page: 0,
             previous_page: 0,
-            rows_per_page: total_rows(),
-            row_size: 10,
+            page_display_selection: 0,
+            page_display_options: [total_rows_table(), 50, 125, 250],
+            rows_per_page: () => { return this.state.page_display_options[this.state.page_display_selection]; },
 
             // Key-stroke state
             btn_last_pressed: ''
         };
+
+        // Reset computed CSS properties for table display
+        this.refreshTable();
 
         // References to DOM components
         this.projectInput = React.createRef();
@@ -124,7 +133,7 @@ export default class App extends React.Component {
     async offsetPage(offset = 0) {
         // Determine new page number according to input offset
         const next_local_page_requested = (this.state.page + offset <= 0) ? 0 : this.state.page + offset;
-        const total_local_page = Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page);
+        const total_local_page = Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page());
         let next_local_page_state = 0;
 
         if (next_local_page_requested < 0) {
@@ -141,20 +150,20 @@ export default class App extends React.Component {
         const swap_results_page = this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
 
         // Determine if we've cycled up & down past the mid-way point of the remote page
-        const direction_up   = next_local_page_state * this.state.rows_per_page - (current_results_page * remote_max_query) > Math.floor(remote_max_query / 2) && this.state.page > this.state.previous_page;
-        const direction_down = next_local_page_state * this.state.rows_per_page - (current_results_page * remote_max_query) < Math.floor(remote_max_query / 2) && this.state.page < this.state.previous_page;
+        const direction_up   = next_local_page_state * this.state.rows_per_page() - (current_results_page * remote_max_query) > Math.floor(remote_max_query / 2) && this.state.page > this.state.previous_page;
+        const direction_down = next_local_page_state * this.state.rows_per_page() - (current_results_page * remote_max_query) < Math.floor(remote_max_query / 2) && this.state.page < this.state.previous_page;
 
         // Determine if we're swapping buffers
-        const ne_current_offset = Math.floor(next_local_page_state * this.state.rows_per_page / remote_max_query) !== current_results_page;
+        const ne_current_offset = Math.floor(next_local_page_state * this.state.rows_per_page() / remote_max_query) !== current_results_page;
         
         // Create offset value for new pre-fetch query according to specified input offset and within the bounds of min/max pagination values
-        const new_offset = (Math.floor(next_local_page_state * this.state.rows_per_page / remote_max_query) + offset <= 0)
+        const new_offset = (Math.floor(next_local_page_state * this.state.rows_per_page() / remote_max_query) + offset <= 0)
             ? 0
-            : Math.floor(next_local_page_state * this.state.rows_per_page / remote_max_query) + offset;
+            : Math.floor(next_local_page_state * this.state.rows_per_page() / remote_max_query) + offset;
         
         // Calculate missing entries from current buffer to fill last page
-        const max_mod_pages = Math.floor(remote_max_query % this.state.rows_per_page);
-        const total_missing_buffer = this.state.rows_per_page - max_mod_pages + (max_mod_pages * current_results_page);
+        const max_mod_pages = Math.floor(remote_max_query % this.state.rows_per_page());
+        const total_missing_buffer = this.state.rows_per_page() - max_mod_pages + (max_mod_pages * current_results_page);
 
         if (this.state.result_offset !== total_missing_buffer) this.setState({ result_offset: total_missing_buffer });
 
@@ -203,7 +212,7 @@ export default class App extends React.Component {
             // Current page information
             const current_remote_page = this.state.result.data[API_RESULT_KEYS.PAGE];
             const current_swap_remote_page = this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
-            const required_remote_page = Math.floor(this.state.page * this.state.rows_per_page / this.state.result.data[API_RESULT_KEYS.MAX_QUERY]);
+            const required_remote_page = Math.floor(this.state.page * this.state.rows_per_page() / this.state.result.data[API_RESULT_KEYS.MAX_QUERY]);
     
             // Check if required page is same as current page
             const ne_local_remote_page = required_remote_page !== current_remote_page;
@@ -226,19 +235,19 @@ export default class App extends React.Component {
                 }
 
                 // Fill swap buffer with closest next page
-                const closest_swap_page = (this.state.page * this.state.rows_per_page - (this.state.result.data[API_RESULT_KEYS.PAGE] * this.state.result.data[API_RESULT_KEYS.MAX_QUERY]) >= Math.floor(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] / 2))
-                ? Math.min(Math.ceil(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] / this.state.rows_per_page), this.state.result.data[API_RESULT_KEYS.PAGE] + 1)
+                const closest_swap_page = (this.state.page * this.state.rows_per_page() - (this.state.result.data[API_RESULT_KEYS.PAGE] * this.state.result.data[API_RESULT_KEYS.MAX_QUERY]) >= Math.floor(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] / 2))
+                ? Math.min(Math.ceil(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] / this.state.rows_per_page()), this.state.result.data[API_RESULT_KEYS.PAGE] + 1)
                 : Math.max(0, this.state.result.data[API_RESULT_KEYS.PAGE] - 1);
             
-                const ne_required_swap_page = Math.floor(this.state.page * this.state.rows_per_page / this.state.result_prefetch.data[API_RESULT_KEYS.MAX_QUERY]) !== this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
+                const ne_required_swap_page = Math.floor(this.state.page * this.state.rows_per_page() / this.state.result_prefetch.data[API_RESULT_KEYS.MAX_QUERY]) !== this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
                 if (ne_required_swap_page) {
                     console.log('new swap page', closest_swap_page);
                     await this.lineSearch(false, true, closest_swap_page);
                 }
 
                 // Update overflow buffer with new swap buffer
-                const max_mod_pages = Math.floor(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] % this.state.rows_per_page);
-                const total_missing_buffer = this.state.rows_per_page - max_mod_pages + (max_mod_pages * this.state.result.data[API_RESULT_KEYS.PAGE]);
+                const max_mod_pages = Math.floor(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] % this.state.rows_per_page());
+                const total_missing_buffer = this.state.rows_per_page() - max_mod_pages + (max_mod_pages * this.state.result.data[API_RESULT_KEYS.PAGE]);
 
                 if (total_missing_buffer > 0) {
                     this.setState({
@@ -428,6 +437,11 @@ export default class App extends React.Component {
         }
     }
 
+    refreshTable() {
+        document.documentElement.style.setProperty('--table-max-size', `${total_height_table()}px`);
+        document.documentElement.style.setProperty('--table-data-max-size', `${total_height_table() - 88}px`);
+    }
+
     componentDidMount() {
         // Listen for shortcuts
         window.addEventListener('keydown', async (e) => {
@@ -487,21 +501,24 @@ export default class App extends React.Component {
 
         // Window resizing event listener
         window.addEventListener('resize', (e) => {
-            if (this.state.rows_per_page !== total_rows()) {
+            if (this.state.rows_per_page() !== total_rows_table()) {
                 // Handle total row change
-                this.setState({ rows_per_page: total_rows() });
+                this.setState({ rows_per_page: total_rows_table() });
 
                 // Handle new last page
-                if (this.state.page >= Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page) - 1) {
+                if (this.state.page >= Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page()) - 1) {
                     this.setState({
-                        page: Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page) - 1,
-                        previous_page: Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page) - 2
+                        page: Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page()) - 1,
+                        previous_page: Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page()) - 2
                     });
                 }
 
                 // Handle data in buffers according to new page sizing
                 this.updateBuffers();
             }
+
+            // Reset computed CSS properties for table display
+            this.refreshTable();
         });
     }
 
@@ -547,19 +564,27 @@ export default class App extends React.Component {
                 <div className='table-wrapper'>
                     <Table
                         page={this.state.page}
-                        rowsPerPage={this.state.rows_per_page}
+                        rowsPerPage={this.state.rows_per_page()}
                         searchResult={this.state.result}
                         overflowResult={this.state.result_overflow}
                         resultOffset={this.state.result_offset}
                         loadingState={this.state.awaiting_results}
                     />
-                    <TablePagination
-                        className='pagination-bar'
-                        results={this.state.result}
-                        page={this.state.page}
-                        rowsPerPage={this.state.rows_per_page}
-                        updatePageCallback={this.offsetPage.bind(this)}
-                    />
+                    <div className='table-nav-container'>
+                        <OptionsButton
+                            currentOptionIndex={this.state.page_display_selection}
+                            optionsList={this.state.page_display_options}
+                            updateCallback={(value) => { if (value >= this.state.page_display_options.length) value = 0; this.updateFieldState('page_display_selection', value); this.refreshTable(); }}
+                        />
+                        <TablePagination
+                            className='pagination-bar'
+                            results={this.state.result}
+                            page={this.state.page}
+                            rowsPerPage={this.state.rows_per_page()}
+                            updatePageCallback={this.offsetPage.bind(this)}
+                        />
+                        <div></div>
+                    </div>
                 </div>
             </div>
         );

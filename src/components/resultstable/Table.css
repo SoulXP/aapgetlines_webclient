@@ -1,14 +1,20 @@
-.table {
+.table-container {
     width: 100%;
     margin: 0.8em 0 0.8em 0;
     overflow: hidden;
 }
 
 .table-text {
+    display: block;
     text-align: left;
+    max-height: var(--table-data-max-size);
+    width: 100%;
+    overflow-x: hidden;
+    overflow-y: scroll;
 }
 
 thead.table-headers {
+  display: block;
   font-weight: bolder;
   background-color: none;
   font-size: larger;
@@ -22,6 +28,7 @@ tr.table-headers-row > th {
 
 table {
     width: 100%;
+    max-width: 100%;
     font-size: 0.9em;
 }
 
@@ -29,6 +36,10 @@ th,
 td {
     font-weight: lighter;
     padding: 5px;
+}
+
+td:last-child {
+  width: 100%;
 }
 
 td.result-row-single,
@@ -71,6 +82,7 @@ td.result-row-single {
 
 tr {
   border: none;
+  width: 100%;
 }
 
 tr.result-row:nth-child(odd) {

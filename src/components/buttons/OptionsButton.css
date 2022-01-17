@@ -1,0 +1,10 @@
+.options-btn-container {
+    height: fit-content;
+    bottom: 0;
+    display: block;
+    text-align: center;
+}
+
+.options-btn-container > span:hover {
+    cursor: pointer;
+}

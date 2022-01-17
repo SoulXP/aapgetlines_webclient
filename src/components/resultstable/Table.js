@@ -32,25 +32,25 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
             
             return (
                 <tr key={index} className='result-row'>
-                    <td className='result-row-single'>
+                    <td>
                         <div className='row-single-content-nowrap'>{found[API_RESULT_KEYS.PROJECT]}</div>
                     </td>
-                    <td className='result-row-single'>
+                    <td>
                         <div className='row-single-content'>{found[API_RESULT_KEYS.SEGMENT]}</div>
                     </td>
-                    <td className='result-row-single'>
+                    <td>
                         <div className='row-single-content-nowrap'>{found[API_RESULT_KEYS.CHARACTER]}</div>
                     </td>
-                    <td className='result-row-single'>
+                    <td>
                         <div className='row-single-content'>{tc_in}</div>
                     </td>
-                    <td className='result-row-single'>
+                    <td>
                         <div className='row-single-content'>{tc_out}</div>
                     </td>
-                    <td className='result-row-single'>
+                    <td>
                         <div className='row-single-content'>{tc_length}</div>
                     </td>
-                    <td className='result-row-single-long'>
+                    <td>
                         <div className='row-single-content-nowrap'>{found[API_RESULT_KEYS.LINE]}</div>
                     </td>
                 </tr>
@@ -58,7 +58,7 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
         });
     
     return (
-        <div className='table'>
+        <div className='table-container'>
             <table>
                 <thead className='table-headers'>
                     <tr className='table-headers-row'>

@@ -1,9 +1,7 @@
 .page-navigator {
-    position: absolute;
     height: fit-content;
     bottom: 0;
     margin: 0 0 1em 0;
-    bottom: 0;
     display: block;
     text-align: center;
     /* margin: 1em 0 1em 0; */
