@@ -450,6 +450,7 @@ export default class App extends React.Component {
             
             // Get modifier state
             const modifier_key = (window.navigator.platform === 'Win32') ? (e.ctrlKey && e.shiftKey) : e.metaKey;
+            const ctrl_key = (window.navigator.platform === 'Win32') ? (e.altKey && e.shiftKey) : e.ctrlKey;
             const shift_key = e.shiftKey;
 
             // Make a line search on Ctrl/Cmd + Enter
@@ -486,6 +487,26 @@ export default class App extends React.Component {
                 this.setState({ current_input_focus: 0 });
             }
 
+            // Change page display to level 1
+            if (e.key === '1' && ctrl_key) {
+                this.setState({ page_display_selection: 0 });
+            }
+
+            // Change page display to level 2
+            if (e.key === '2' && ctrl_key) {
+                this.setState({ page_display_selection: 1 });
+            }
+
+            // Change page display to level 3
+            if (e.key === '3' && ctrl_key) {
+                this.setState({ page_display_selection: 2 });
+            }
+
+            // Change page display to level 4
+            if (e.key === '4' && ctrl_key) {
+                this.setState({ page_display_selection: 3 });
+            }
+
             // Navigate left to right on Shift + Tab
             if (e.key === 'Tab' && !shift_key) {
                 e.preventDefault();
@@ -503,7 +524,11 @@ export default class App extends React.Component {
         window.addEventListener('resize', (e) => {
             if (this.state.rows_per_page() !== total_rows_table()) {
                 // Handle total row change
-                this.setState({ rows_per_page: total_rows_table() });
+                const updated_options = this.state.page_display_options.map((c, i) => {
+                    if (i === 0) return total_rows_table();
+                    else return c;
+                });
+                this.setState({ page_display_options: updated_options });
 
                 // Handle new last page
                 if (this.state.page >= Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page()) - 1) {
@@ -574,6 +599,7 @@ export default class App extends React.Component {
                         <OptionsButton
                             currentOptionIndex={this.state.page_display_selection}
                             optionsList={this.state.page_display_options}
+                            displayValue={(index, value) => (index > 0) ? `Display: ${value}` : 'Display: Fit' }
                             updateCallback={(value) => { if (value >= this.state.page_display_options.length) value = 0; this.updateFieldState('page_display_selection', value); this.refreshTable(); }}
                         />
                         <TablePagination
@@ -583,7 +609,7 @@ export default class App extends React.Component {
                             rowsPerPage={this.state.rows_per_page()}
                             updatePageCallback={this.offsetPage.bind(this)}
                         />
-                        <div></div>
+                        <div style={{ marginRight: '3em', visibility: 'hidden' }}>{this.state.rows_per_page()}</div>
                     </div>
                 </div>
             </div>

@@ -1,11 +1,10 @@
 .page-navigator {
     height: fit-content;
     bottom: 0;
-    margin: 0 0 1em 0;
     display: block;
+    margin-left: auto;
+    margin-right: auto;
     text-align: center;
-    /* margin: 1em 0 1em 0; */
-    padding: 0 20px 0 20px;
 }
 
 .normal-text {

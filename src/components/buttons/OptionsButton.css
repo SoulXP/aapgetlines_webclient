@@ -1,8 +1,8 @@
 .options-btn-container {
-    height: fit-content;
     bottom: 0;
     display: block;
     text-align: center;
+    margin-left: 3em;
 }
 
 .options-btn-container > span:hover {
