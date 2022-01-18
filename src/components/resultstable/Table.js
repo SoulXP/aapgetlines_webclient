@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import './Table.css';
 import { API_RESULT_KEYS } from '../../http/ApiClient.js';
 import { IconButton } from '@mui/material';
@@ -6,7 +6,11 @@ import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import LoadingButton from '@mui/lab/LoadingButton';
 import { float_to_tc } from '../../utils/Timecode.js';
 
-export default function Table({ page, rowsPerPage, searchResult, overflowResult, resultOffset, loadingState }) {
+export default function Table({ page, rowsPerPage, searchResult, overflowResult, resultOffset, loadingState, setRefCallback }) {
+    // Declare references for syncing DOM elements with app
+    const table_body = useRef(null);
+    setRefCallback(table_body);
+
     // Extract search result data
     const results = (overflowResult.length > 0)
         ? [...searchResult.data[API_RESULT_KEYS.RESULTS], ...overflowResult]
@@ -71,7 +75,7 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
                         <th style={{ width: '66%' }}><span>Line</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
                     </tr>
                 </thead>
-                <tbody className='table-text'>
+                <tbody ref={table_body} className='table-text'>
                     {
                         table_data.length > 0
                         &&

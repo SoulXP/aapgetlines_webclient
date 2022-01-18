@@ -29,7 +29,19 @@ function total_rows_table() {
 }
 
 function total_height_table() {
-    return Math.floor(window.innerHeight - 238); // 288 is the total height of all other document elements, 30 is height of each row + border
+    return Math.floor(total_rows_table() * 27); // 288 is the total height of all other document elements, 30 is height of each row + border
+}
+
+function react_element_dimensions(element) {
+    let height = -1;
+    let width = -1;
+
+    if (element.current !== null) {
+        height = element.current.offsetHeight;
+        width = element.current.offsetWidth;
+    }
+    
+    return { height, width };
 }
 
 export default class App extends React.Component {
@@ -75,6 +87,13 @@ export default class App extends React.Component {
             previous_page: 0,
             page_display_selection: 0,
             page_display_options: [total_rows_table(), 50, 125, 250],
+            row_dimensions_px: () => {
+                if (this.tableBody.current !== null) {
+                    if (this.tableBody.current.rows.length > 0) return this.tableBody.current.rows[0].offsetHeight;
+                };
+
+                return 0;
+            },
             rows_per_page: () => { return this.state.page_display_options[this.state.page_display_selection]; },
 
             // Key-stroke state
@@ -89,6 +108,7 @@ export default class App extends React.Component {
         this.episodesInput = React.createRef();
         this.charactersInput = React.createRef();
         this.linesInput = React.createRef();
+        this.tableBody = React.createRef();
     }
 
     toggleTextInput(direction = 1) {
@@ -122,6 +142,15 @@ export default class App extends React.Component {
             this.episodesInput = ref_2;
             this.charactersInput = ref_3;
             this.linesInput = ref_4;
+        }
+    }
+
+    setAppRefs(refs = []) {
+        if (refs.length !== 0) {
+            for (const wrapper of refs) {
+                const k = Object.keys(wrapper)[0];
+                this[k] = wrapper[k];
+            }
         }
     }
     
@@ -283,7 +312,6 @@ export default class App extends React.Component {
 
     // Callback method for preparing user search inputs and querying database
     async lineSearch(new_query, prefetch = false, page = 0, offset = 0, limit = 0) {
-        // TODO: Validate that at least one option was provided by user
         // Storage for parsed user input
         let list_episodes = [];
         let list_projects =   (new_query) ? [] : this.state.current_query_parameters.projects;
@@ -293,7 +321,7 @@ export default class App extends React.Component {
 
         // Query hrefs with parameters
         let qry_href = '';
-        let qry_page = (new_query) ? 0 : page;
+        let qry_page   = (new_query) ? 0 : page;
         let qry_offset = (new_query) ? 0 : offset;
         
         // Collect user input from form fields
@@ -310,8 +338,6 @@ export default class App extends React.Component {
                               && (re_space.test(this.state.characters))
                               && (re_space.test(this.state.episodes))
                               && (re_space.test(this.state.lines));
-
-        // TODO: Test if current user input is the same as previous inputs
 
         if (new_query && !valid_search) {
             // Parse and seperate user options
@@ -594,6 +620,7 @@ export default class App extends React.Component {
                         overflowResult={this.state.result_overflow}
                         resultOffset={this.state.result_offset}
                         loadingState={this.state.awaiting_results}
+                        setRefCallback={(ref) => { this.setAppRefs([{ 'tableBody': ref }]); }}
                     />
                     <div className='table-nav-container'>
                         <OptionsButton
