@@ -59,7 +59,12 @@ export default class App extends React.Component {
             current_input_focus: 0,
             current_query: '',
             successful_results: false,
-            are_fields_empty: true,
+            are_fields_empty: () => {
+                return this.state.projects === ''   &&
+                       this.state.characters === '' &&
+                       this.state.episodes === ''   &&
+                       this.state.lines === '';
+            },
             current_query_parameters: {
                 projects: [],
                 characters: [],
@@ -97,8 +102,13 @@ export default class App extends React.Component {
             rows_per_page: () => { return this.state.page_display_options[this.state.page_display_selection]; },
 
             // Key-stroke state
-            btn_last_pressed: ''
+            btn_last_pressed: '',
+            key_timed_out: false
+
         };
+
+        // Timer for various app level timing needs
+        this.timers = 0;
 
         // Reset computed CSS properties for table display
         this.refreshTable();
@@ -109,6 +119,12 @@ export default class App extends React.Component {
         this.charactersInput = React.createRef();
         this.linesInput = React.createRef();
         this.tableBody = React.createRef();
+    }
+
+    timeLastKeyPressed() {
+        this.timer = setTimeout(() => {
+            this.setState({ key_timed_out: true });
+        }, 250);
     }
 
     toggleTextInput(direction = 1) {
@@ -434,8 +450,7 @@ export default class App extends React.Component {
             projects: '',
             characters: '',
             episodes: '',
-            lines: '',
-            are_fields_empty: true
+            lines: ''
         });
 
         if (clear_results) {
@@ -488,18 +503,34 @@ export default class App extends React.Component {
             
             // Clear search fields on 1x Escape
             if (e.key === 'Escape') {
-                // TODO: Only clear field for currently focused input field
-                this.clearSearch(false);
-            }
+                const inputs = [
+                    {key: 'projects',   element: this.projectsInput.current   },
+                    {key: 'episodes',   element: this.episodesInput.current   },
+                    {key: 'characters', element: this.charactersInput.current },
+                    {key: 'lines',      element: this.linesInput.current      }
+                ];
 
+                let active = '';
+                for (const input of inputs) {
+                    const is_same = document.activeElement === input['element'];
+                    console.log('active', is_same);
+                    console.log('element', input['element']);
+                    if (is_same) {
+                        active = input['key'];
+                    }
+                }
+                
+                if (active !== '') {
+                    console.log('resetting field:', active);
+                    this.updateFieldState(active, '');
+                }
+            }
+            
             // Clear clear search results on 2x Escape
-            if (e.key === 'Escape' && this.state.are_fields_empty) {
+            if (e.key === 'Escape' && this.state.btn_last_pressed === 'Escape' && !this.state.key_timed_out)
+            {
                 this.clearSearch(true);
-            }
-
-            // Clear clear search results on 2x Escape
-            if (e.key === 'Escape' && this.state.btn_last_pressed === 'Escape') {
-                this.projectInput.current.focus();
+                this.projectsInput.current.focus();
                 this.setState({ current_input_focus: 0 });
             }
 
@@ -534,6 +565,10 @@ export default class App extends React.Component {
 
             // Store state for currently pressed button
             this.setState({ btn_last_pressed: e.key });
+
+            // Reset timeout for last key pressed & set timer
+            this.setState({ key_timed_out: false });
+            this.timeLastKeyPressed();
         });
 
         // Window resizing event listener
@@ -571,21 +606,20 @@ export default class App extends React.Component {
         window.removeEventListener('resize', (e) => {
             // TODO
         });
+
     }
-
+    
     componentDidUpdate(prev_props, prev_state) {
-
+        // Clear app timers
+        clearTimeout(this.timer);
     }
 
     render() {
         // Handle background color based on query results
         let backgroundColor = '#4da4f6';
-        const are_fields_empty = this.state.projects === ''
-                                 && this.state.characters === ''
-                                 && this.state.episodes === ''
-                                 && this.state.lines === ''
-                                 && !this.state.successful_results
-                                 && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] === 0;
+        const are_fields_empty = this.state.are_fields_empty()                              &&
+                                 !this.state.successful_results                             &&
+                                 this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] === 0;
 
         if (!are_fields_empty && this.state.successful_results && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] > 0) backgroundColor = '#007e00';
         else if (!are_fields_empty && this.state.successful_results && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] <= 0) backgroundColor = '#ff572d';
