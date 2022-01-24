@@ -6,10 +6,13 @@ import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import LoadingButton from '@mui/lab/LoadingButton';
 import { float_to_tc } from '../../utils/Timecode.js';
 
-export default function Table({ page, rowsPerPage, searchResult, overflowResult, resultOffset, loadingState, setRefCallback }) {
-    // Declare references for syncing DOM elements with app
+export default function Table({ page, rowsPerPage, searchResult, overflowResult, resultOffset, loadingState, setRefCallbacks }) {
+    // Declare references for syncing DOM elements with app and destructure callbacks
+    const table_head = useRef(null);
     const table_body = useRef(null);
-    setRefCallback(table_body);
+    const { updateTableHeadRef, updateTableBodyRef } = setRefCallbacks;
+    updateTableHeadRef(table_head);
+    updateTableBodyRef(table_body);
 
     // Extract search result data
     const results = (overflowResult.length > 0)
@@ -64,7 +67,7 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
     return (
         <div className='table-container'>
             <table>
-                <thead className='table-headers'>
+                <thead ref={table_head} className='table-headers'>
                     <tr className='table-headers-row'>
                         <th><span>Project</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
                         <th><span>Episode</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>

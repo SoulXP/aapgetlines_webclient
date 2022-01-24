@@ -5,23 +5,25 @@ export default function Searchbar({ updateFieldCallbacks, setRefCallbacks, proje
     // TODO: implement input tokenization for user input during search query
 
     // Create references to input fields for DOM control of cursor
+    const search_bar = useRef(null);
     const projects_field = useRef(null);
     const episodes_field = useRef(null);
     const characters_field = useRef(null);
     const lines_field = useRef(null);
 
     // Destructure callbacks for updating DOM references in component to app
-    const { updateProjectsField, updateEpisodesField, updateCharactersField, updateLinesField } = setRefCallbacks;
-    updateProjectsField(projects_field);
-    updateEpisodesField(episodes_field);
-    updateCharactersField(characters_field);
-    updateLinesField(lines_field);
+    const { updateProjectsRef, updateEpisodesRef, updateCharactersRef, updateLinesRef, updateAppSearchBarRef } = setRefCallbacks;
+    updateAppSearchBarRef(search_bar);
+    updateProjectsRef(projects_field);
+    updateEpisodesRef(episodes_field);
+    updateCharactersRef(characters_field);
+    updateLinesRef(lines_field);
 
     // Destructure callbacks for updating app state
     const { updateCharacters, updateProjects, updateLines, updateEpisodes, updateInputFocus } = updateFieldCallbacks;
 
     return (
-        <div className='search-bar'>
+        <div ref={search_bar} className='search-bar'>
             <form className='search-form'>
                     <div className='input-fields'>
                         <input

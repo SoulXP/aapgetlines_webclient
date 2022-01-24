@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import './styles.css';
 import './App.css';
 import Searchbar from './components/searchbar/SearchBar.js';
@@ -8,6 +8,7 @@ import buildQueryString from './utils/QueryUrl.js';
 import { epRangesToSequences } from './components/searchbar/EpRange.js';
 import TablePagination from './components/resultstable/UsePagination';
 import OptionsButton from './components/buttons/OptionsButton.js'
+import { ThermostatOutlined } from '@mui/icons-material';
 
 const result_default = {
     query: '',
@@ -91,40 +92,64 @@ export default class App extends React.Component {
             page: 0,
             previous_page: 0,
             page_display_selection: 0,
-            page_display_options: [total_rows_table(), 50, 125, 250],
-            row_dimensions_px: () => {
-                if (this.tableBody.current !== null) {
-                    if (this.tableBody.current.rows.length > 0) return this.tableBody.current.rows[0].offsetHeight;
-                };
-
-                return 0;
-            },
+            page_display_options: [12, 50, 125, 250],
             rows_per_page: () => { return this.state.page_display_options[this.state.page_display_selection]; },
 
             // Key-stroke state
             btn_last_pressed: '',
             key_timed_out: false
-
         };
 
         // Timer for various app level timing needs
         this.timers = 0;
 
-        // Reset computed CSS properties for table display
-        this.refreshTable();
+        // Styling constants
+        this.table_row_size_px = 30;
 
         // References to DOM components
-        this.projectsInput = React.createRef();
-        this.episodesInput = React.createRef();
+        this.projectsInput =   React.createRef();
+        this.episodesInput =   React.createRef();
         this.charactersInput = React.createRef();
-        this.linesInput = React.createRef();
-        this.tableBody = React.createRef();
+        this.linesInput =      React.createRef();
+        this.tableHeader =     React.createRef();
+        this.tableBody =       React.createRef();
+        this.appHeader =       React.createRef();
+        this.appSearchBar =    React.createRef();
+        this.appPageSettings = React.createRef();
+
+        // Defaults for references
+        // this.projectsInput['current'] = undefined;
+        // this.episodesInput['current'] = undefined;
+        // this.charactersInput['current'] = undefined;
+        // this.linesInput['current'] = undefined;
+        // this.tableHeader['current'] = undefined;
+        // this.tableBody['current'] = undefined;
+        // this.appHeader['current'] = undefined;
+        // this.appSearchBar['current'] = undefined;
+        // this.appPageSettings['current'] = undefined;
     }
 
     timeLastKeyPressed() {
         this.timer = setTimeout(() => {
             this.setState({ key_timed_out: true });
         }, 250);
+    }
+
+    getAvailableTableSpacePx() {
+        // TODO: Non-negative safety check / any null case
+        if (typeof this.appHeader.current !== undefined
+            && typeof this.appSearchBar.current !== undefined
+            && typeof this.appPageSettings.current !== undefined)
+        {
+            const screen_height = window.innerHeight;
+            const header_height = this.appHeader.current.offsetHeight;
+            const searchbar_height = this.appSearchBar.current.offsetHeight;
+            const pagesettings_height = this.appPageSettings.current.offsetHeight;
+
+            return screen_height - (header_height + searchbar_height + pagesettings_height);
+        }
+
+        return 0;
     }
 
     toggleTextInput(direction = 1) {
@@ -469,8 +494,9 @@ export default class App extends React.Component {
     }
 
     refreshTable() {
-        document.documentElement.style.setProperty('--table-max-size', `${total_height_table()}px`);
-        document.documentElement.style.setProperty('--table-data-max-size', `${total_height_table() - 88}px`);
+        document.documentElement.style.setProperty('--table-max-size', `${this.getAvailableTableSpacePx() - this.appPageSettings.current.offsetHeight}px`);
+        document.documentElement.style.setProperty('--table-data-max-size', `${this.getAvailableTableSpacePx() - this.appPageSettings.current.offsetHeight}px`);
+        document.documentElement.style.setProperty('--table-row-height', `${this.table_row_size_px}px`);
     }
 
     componentDidMount() {
@@ -513,15 +539,12 @@ export default class App extends React.Component {
                 let active = '';
                 for (const input of inputs) {
                     const is_same = document.activeElement === input['element'];
-                    console.log('active', is_same);
-                    console.log('element', input['element']);
                     if (is_same) {
                         active = input['key'];
                     }
                 }
                 
                 if (active !== '') {
-                    console.log('resetting field:', active);
                     this.updateFieldState(active, '');
                 }
             }
@@ -593,9 +616,16 @@ export default class App extends React.Component {
                 this.updateBuffers();
             }
 
+            
             // Reset computed CSS properties for table display
             this.refreshTable();
         });
+
+        // Update page display based on mounted DOM references
+        this.setState({ page_display_options: [Math.floor(this.getAvailableTableSpacePx() / this.table_row_size_px), 50, 125, 250] });
+
+        // Reset computed CSS properties for table display
+        this.refreshTable();
     }
 
     componentWillUnmount() {
@@ -606,7 +636,6 @@ export default class App extends React.Component {
         window.removeEventListener('resize', (e) => {
             // TODO
         });
-
     }
     
     componentDidUpdate(prev_props, prev_state) {
@@ -617,30 +646,34 @@ export default class App extends React.Component {
     render() {
         // Handle background color based on query results
         let backgroundColor = '#4da4f6';
-        const are_fields_empty = this.state.are_fields_empty()                              &&
-                                 !this.state.successful_results                             &&
-                                 this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] === 0;
+        const are_fields_empty = this.state.are_fields_empty()
+                                 && !this.state.successful_results
+                                 && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] === 0;
 
-        if (!are_fields_empty && this.state.successful_results && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] > 0) backgroundColor = '#007e00';
-        else if (!are_fields_empty && this.state.successful_results && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] <= 0) backgroundColor = '#ff572d';
+        if (!are_fields_empty && this.state.successful_results
+            && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] > 0) backgroundColor = '#007e00';
+
+        else if (!are_fields_empty && this.state.successful_results
+                 && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] <= 0) backgroundColor = '#ff572d';
 
         return (
             <div style={{ backgroundColor: backgroundColor }} className='App'>
-                <h1 className='header'>AAP Lore</h1>
+                <h1 ref={this.appHeader} className='header'>AAP Lore</h1>
                 <Searchbar
                     updateFieldCallbacks={{
-                            updateProjects:   (v) => { this.updateFieldState('projects', v);            },
-                            updateEpisodes:   (v) => { this.updateFieldState('episodes', v);            },
-                            updateCharacters: (v) => { this.updateFieldState('characters', v);          },
-                            updateLines:      (v) => { this.updateFieldState('lines', v);               },
-                            updateInputFocus: (v) => { this.updateFieldState('current_input_focus', v); },
+                            updateProjects:   (ref) => { this.updateFieldState('projects', ref);            },
+                            updateEpisodes:   (ref) => { this.updateFieldState('episodes', ref);            },
+                            updateCharacters: (ref) => { this.updateFieldState('characters', ref);          },
+                            updateLines:      (ref) => { this.updateFieldState('lines', ref);               },
+                            updateInputFocus: (ref) => { this.updateFieldState('current_input_focus', ref); },
                         }
                     }
                     setRefCallbacks={{
-                        updateProjectsField:   (v) => { this.setAppRefs([{projectsInput: v}])   },
-                        updateEpisodesField:   (v) => { this.setAppRefs([{episodesInput: v}])   },
-                        updateCharactersField: (v) => { this.setAppRefs([{charactersInput: v}]) },
-                        updateLinesField:      (v) => { this.setAppRefs([{linesInput: v}])      },
+                        updateProjectsRef:     (ref) => { this.setAppRefs([{projectsInput: ref}])   },
+                        updateEpisodesRef:     (ref) => { this.setAppRefs([{episodesInput: ref}])   },
+                        updateCharactersRef:   (ref) => { this.setAppRefs([{charactersInput: ref}]) },
+                        updateLinesRef:        (ref) => { this.setAppRefs([{linesInput: ref}])      },
+                        updateAppSearchBarRef: (ref) => { this.setAppRefs([{appSearchBar: ref}])    },
                     }}
                     project={this.state.projects}
                     character={this.state.characters}
@@ -656,9 +689,12 @@ export default class App extends React.Component {
                         overflowResult={this.state.result_overflow}
                         resultOffset={this.state.result_offset}
                         loadingState={this.state.awaiting_results}
-                        setRefCallback={(ref) => { this.setAppRefs([{ 'tableBody': ref }]); }}
+                        setRefCallbacks={{
+                            updateTableHeadRef: (ref) => { this.setAppRefs([{ tableHeader: ref }]); },
+                            updateTableBodyRef: (ref) => { this.setAppRefs([{ tableBody: ref }]);   },
+                        }}
                     />
-                    <div className='table-nav-container'>
+                    <div ref={this.appPageSettings} className='table-nav-container'>
                         <OptionsButton
                             currentOptionIndex={this.state.page_display_selection}
                             optionsList={this.state.page_display_options}
