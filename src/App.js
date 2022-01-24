@@ -104,7 +104,7 @@ export default class App extends React.Component {
         this.refreshTable();
 
         // References to DOM components
-        this.projectInput = React.createRef();
+        this.projectsInput = React.createRef();
         this.episodesInput = React.createRef();
         this.charactersInput = React.createRef();
         this.linesInput = React.createRef();
@@ -127,21 +127,11 @@ export default class App extends React.Component {
 
         // Set focus according to state
         switch (this.state.current_input_focus) {
-            case 0: this.projectInput.current.focus(); break;
+            case 0: this.projectsInput.current.focus(); break;
             case 1: this.charactersInput.current.focus(); break;
             case 2: this.episodesInput.current.focus(); break;
             case 3: this.linesInput.current.focus(); break;
             default: console.error('[ERROR] no reference to input field was set'); break;
-        }
-    }
-
-    setInputRefs(refs = []) {
-        if (refs.length !== 0) {
-            const [ref_1, ref_2, ref_3, ref_4] = refs;
-            this.projectInput = ref_1;
-            this.episodesInput = ref_2;
-            this.charactersInput = ref_3;
-            this.linesInput = ref_4;
         }
     }
 
@@ -604,8 +594,20 @@ export default class App extends React.Component {
             <div style={{ backgroundColor: backgroundColor }} className='App'>
                 <h1 className='header'>AAP Lore</h1>
                 <Searchbar
-                    updateFieldCallback={this.updateFieldState.bind(this)}
-                    setRefCallback={this.setInputRefs.bind(this)}
+                    updateFieldCallbacks={{
+                            updateProjects:   (v) => { this.updateFieldState('projects', v);            },
+                            updateEpisodes:   (v) => { this.updateFieldState('episodes', v);            },
+                            updateCharacters: (v) => { this.updateFieldState('characters', v);          },
+                            updateLines:      (v) => { this.updateFieldState('lines', v);               },
+                            updateInputFocus: (v) => { this.updateFieldState('current_input_focus', v); },
+                        }
+                    }
+                    setRefCallbacks={{
+                        updateProjectsField:   (v) => { this.setAppRefs([{projectsInput: v}])   },
+                        updateEpisodesField:   (v) => { this.setAppRefs([{episodesInput: v}])   },
+                        updateCharactersField: (v) => { this.setAppRefs([{charactersInput: v}]) },
+                        updateLinesField:      (v) => { this.setAppRefs([{linesInput: v}])      },
+                    }}
                     project={this.state.projects}
                     character={this.state.characters}
                     episode={this.state.episodes}
@@ -634,7 +636,7 @@ export default class App extends React.Component {
                             results={this.state.result}
                             page={this.state.page}
                             rowsPerPage={this.state.rows_per_page()}
-                            updatePageCallback={this.offsetPage.bind(this)}
+                            updatePageCallback={(v) => { this.offsetPage(v); }}
                         />
                         <div style={{ marginRight: '3em', visibility: 'hidden' }}>{this.state.rows_per_page()}</div>
                     </div>
@@ -643,4 +645,3 @@ export default class App extends React.Component {
         );
     }
 }
-    

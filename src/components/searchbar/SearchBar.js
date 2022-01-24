@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import './SearchBar.css';
 
-export default function Searchbar({ updateFieldCallback, setRefCallback, project, character, episode, line }) {
+export default function Searchbar({ updateFieldCallbacks, setRefCallbacks, project, character, episode, line }) {
     // TODO: implement input tokenization for user input during search query
 
     // Create references to input fields for DOM control of cursor
@@ -9,7 +9,16 @@ export default function Searchbar({ updateFieldCallback, setRefCallback, project
     const episodes_field = useRef(null);
     const characters_field = useRef(null);
     const lines_field = useRef(null);
-    setRefCallback([projects_field, episodes_field, characters_field, lines_field]);
+
+    // Destructure callbacks for updating DOM references in component to app
+    const { updateProjectsField, updateEpisodesField, updateCharactersField, updateLinesField } = setRefCallbacks;
+    updateProjectsField(projects_field);
+    updateEpisodesField(episodes_field);
+    updateCharactersField(characters_field);
+    updateLinesField(lines_field);
+
+    // Destructure callbacks for updating app state
+    const { updateCharacters, updateProjects, updateLines, updateEpisodes, updateInputFocus } = updateFieldCallbacks;
 
     return (
         <div className='search-bar'>
@@ -17,33 +26,33 @@ export default function Searchbar({ updateFieldCallback, setRefCallback, project
                     <div className='input-fields'>
                         <input
                             ref={projects_field}
-                            onFocus={(e) => { updateFieldCallback('current_input_focus', 0); }}
+                            onFocus={(e) => { updateInputFocus(0); }}
                             placeholder='Projects'
-                            onChange={(e) => { e.preventDefault(); updateFieldCallback('projects', e.target.value); }}
+                            onChange={(e) => { e.preventDefault(); updateProjects(e.target.value); }}
                             className='search-input left-grow-input'
                             value={project}
                         />
                         <input
                             ref={characters_field}
-                            onFocus={(e) => { updateFieldCallback('current_input_focus', 1); }}
+                            onFocus={(e) => { updateInputFocus(1); }}
                             placeholder='Characters'
-                            onChange={(e) => { e.preventDefault(); updateFieldCallback('characters', e.target.value); }}
+                            onChange={(e) => { e.preventDefault(); updateCharacters(e.target.value); }}
                             className='search-input right-grow-input left-grow-input'
                             value={character}
                         />
                         <input
                             ref={episodes_field}
-                            onFocus={(e) => { updateFieldCallback('current_input_focus', 2); }}
+                            onFocus={(e) => { updateInputFocus(2); }}
                             placeholder='Episodes'
-                            onChange={(e) => { e.preventDefault(); updateFieldCallback('episodes', e.target.value); }}
+                            onChange={(e) => { e.preventDefault(); updateEpisodes(e.target.value); }}
                             className='search-input right-grow-input left-grow-input'
                             value={episode}
                         />
                         <input
                             ref={lines_field}
-                            onFocus={(e) => { updateFieldCallback('current_input_focus', 3); }}
+                            onFocus={(e) => { updateInputFocus(3); }}
                             placeholder='Lines'
-                            onChange={(e) => { e.preventDefault(); updateFieldCallback('lines', e.target.value); }}
+                            onChange={(e) => { e.preventDefault(); updateLines(e.target.value); }}
                             className='search-input left-grow-input'
                             value={line}
                         />
