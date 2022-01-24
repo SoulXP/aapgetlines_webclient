@@ -49,7 +49,7 @@ td.result-row-single-long {
 }
 
 td.result-row-single {
-  height: 30px;
+  height: var(--table-row-height);
   max-width: 100%;
   overflow: hidden;
 }
