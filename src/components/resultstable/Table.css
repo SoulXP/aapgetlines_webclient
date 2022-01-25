@@ -1,14 +1,16 @@
 .table-container {
     width: 100%;
-    margin: 0.8em 0 0.8em 0;
+    height: var(--table-max-size);
     overflow: hidden;
+    margin: 0;
 }
 
 .table-text {
     display: block;
     text-align: left;
-    max-height: var(--table-data-max-size);
     width: 100%;
+    max-height: var(--table-data-max-size);
+    padding-bottom: 1px;
     overflow-x: hidden;
     overflow-y: scroll;
 }
@@ -18,18 +20,17 @@ thead.table-headers {
   font-weight: bolder;
   background-color: none;
   font-size: larger;
-  border-bottom: 1px solid #ffffff33;
 }
 
 tr.table-headers-row > th {
-  padding-bottom: 1em;
+  padding-bottom: 1rem;
   padding-inline: 5px;
 }
 
 table {
     width: 100%;
     max-width: 100%;
-    font-size: 0.9em;
+    font-size: 0.8rem;
 }
 
 th,
@@ -49,7 +50,6 @@ td.result-row-single-long {
 }
 
 td.result-row-single {
-  height: var(--table-row-height);
   max-width: 100%;
   overflow: hidden;
 }
@@ -85,6 +85,10 @@ tr {
   width: 100%;
 }
 
+tr.result-row {
+  height: var(--table-row-height);
+}
+
 tr.result-row:nth-child(odd) {
   background-color: #ffffff33;
 }
@@ -97,4 +101,12 @@ tr.result-row:nth-child(even) {
   display: flex;
   flex-direction: row;
   justify-content: space-evenly;
+  margin: none;
+  padding: none;
+}
+
+@media screen and (max-height: 844px) {
+  table {
+    font-size: 0.6rem;
+  }
 }

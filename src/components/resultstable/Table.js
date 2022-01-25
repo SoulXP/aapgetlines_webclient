@@ -36,9 +36,12 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
             const tc_in = float_to_tc(found[API_RESULT_KEYS.TIMECODE][0], found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
             const tc_out = float_to_tc(found[API_RESULT_KEYS.TIMECODE][1], found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
             const tc_length = float_to_tc((found[API_RESULT_KEYS.TIMECODE][1] - found[API_RESULT_KEYS.TIMECODE][0]), found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
-            
+
             return (
                 <tr key={index} className='result-row'>
+                    <td>
+                        <div className='row-single-content-nowrap'>{index}</div>
+                    </td>
                     <td>
                         <div className='row-single-content-nowrap'>{found[API_RESULT_KEYS.PROJECT]}</div>
                     </td>
@@ -66,9 +69,10 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
     
     return (
         <div className='table-container'>
-            <table>
+            <table style={{ borderCollapse: 'collapse' }}>
                 <thead ref={table_head} className='table-headers'>
                     <tr className='table-headers-row'>
+                        <th><span>No.</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
                         <th><span>Project</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
                         <th><span>Episode</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
                         <th><span>Character</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>

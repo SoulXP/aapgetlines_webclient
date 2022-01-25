@@ -34,8 +34,8 @@ body {
 .table-wrapper {
     display: flex;
     justify-content: center;
+    max-height:  var(--table-max-size);
     flex-direction: column;
-    max-height: var(--table-max-size);
     align-items: center;
     text-align: center;
 }
@@ -49,5 +49,14 @@ body {
   height: fit-content;
   width: 100vw;
   bottom: 0;
-  margin: 0 1em 1em 1em;
+  margin: 0 1rem 1rem 1rem;
+}
+
+.dummy-bottom-spacer {
+  display: block;
+  position: relative;
+  visibility: hidden;
+  height: 1px;
+  width: 100%;
+  background-color: red;
 }

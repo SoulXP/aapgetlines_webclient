@@ -8,11 +8,11 @@
 }
 
 .normal-text {
-    font-size: 1em;
+    font-size: 1rem;
     font-weight: light;
 }
 
 .page-button {
-    border: 1em;
+    border: 1rem;
     border-color: red;
 }

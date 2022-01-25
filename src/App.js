@@ -24,27 +24,6 @@ const result_default = {
     }
 };
 
-// TODO: Formalize these functions
-function total_rows_table() {
-    return Math.floor((window.innerHeight - 288) / 32); // 288 is the total height of all other document elements, 30 is height of each row + border
-}
-
-function total_height_table() {
-    return Math.floor(total_rows_table() * 27); // 288 is the total height of all other document elements, 30 is height of each row + border
-}
-
-function react_element_dimensions(element) {
-    let height = -1;
-    let width = -1;
-
-    if (element.current !== null) {
-        height = element.current.offsetHeight;
-        width = element.current.offsetWidth;
-    }
-    
-    return { height, width };
-}
-
 export default class App extends React.Component {
     constructor(props) {
         // Call parent constructor
@@ -60,12 +39,6 @@ export default class App extends React.Component {
             current_input_focus: 0,
             current_query: '',
             successful_results: false,
-            are_fields_empty: () => {
-                return this.state.projects === ''   &&
-                       this.state.characters === '' &&
-                       this.state.episodes === ''   &&
-                       this.state.lines === '';
-            },
             current_query_parameters: {
                 projects: [],
                 characters: [],
@@ -93,7 +66,6 @@ export default class App extends React.Component {
             previous_page: 0,
             page_display_selection: 0,
             page_display_options: [12, 50, 125, 250],
-            rows_per_page: () => { return this.state.page_display_options[this.state.page_display_selection]; },
 
             // Key-stroke state
             btn_last_pressed: '',
@@ -116,17 +88,6 @@ export default class App extends React.Component {
         this.appHeader =       React.createRef();
         this.appSearchBar =    React.createRef();
         this.appPageSettings = React.createRef();
-
-        // Defaults for references
-        // this.projectsInput['current'] = undefined;
-        // this.episodesInput['current'] = undefined;
-        // this.charactersInput['current'] = undefined;
-        // this.linesInput['current'] = undefined;
-        // this.tableHeader['current'] = undefined;
-        // this.tableBody['current'] = undefined;
-        // this.appHeader['current'] = undefined;
-        // this.appSearchBar['current'] = undefined;
-        // this.appPageSettings['current'] = undefined;
     }
 
     timeLastKeyPressed() {
@@ -137,19 +98,48 @@ export default class App extends React.Component {
 
     getAvailableTableSpacePx() {
         // TODO: Non-negative safety check / any null case
-        if (typeof this.appHeader.current !== undefined
-            && typeof this.appSearchBar.current !== undefined
-            && typeof this.appPageSettings.current !== undefined)
+        if (this.appHeader.current !== null
+            && this.appSearchBar.current !== null
+            && this.appPageSettings.current !== null
+            && this.tableHeader.current !== null
+            && this.tableBody.current !== null)
         {
             const screen_height = window.innerHeight;
             const header_height = this.appHeader.current.offsetHeight;
             const searchbar_height = this.appSearchBar.current.offsetHeight;
+            const tableheader_height = this.tableHeader.current.offsetHeight;
             const pagesettings_height = this.appPageSettings.current.offsetHeight;
+            const table_size = screen_height - (header_height + searchbar_height + tableheader_height + pagesettings_height);
 
-            return screen_height - (header_height + searchbar_height + pagesettings_height);
+            return table_size - 25;
         }
 
         return 0;
+    }
+
+    getRowSizePx() {
+        let row_px = 0;
+        const table_size = this.getAvailableTableSpacePx() - this.tableHeader.current.offsetHeight;
+        const aspect_ratio = window.screen.width / window.screen.height;
+
+        let aspect_coef = (aspect_ratio > 1.25) ? 22 : 10;
+        row_px = table_size / aspect_coef;
+        
+        return {
+            size_px: row_px,
+            total_fit: aspect_coef
+        };
+    }
+
+    getPageRowDisplay() {
+        return this.state.page_display_options[this.state.page_display_selection];
+    }
+
+    areFieldsEmpty() {
+        return this.state.projects === ''   &&
+               this.state.characters === '' &&
+               this.state.episodes === ''   &&
+               this.state.lines === '';
     }
 
     toggleTextInput(direction = 1) {
@@ -193,7 +183,7 @@ export default class App extends React.Component {
     async offsetPage(offset = 0) {
         // Determine new page number according to input offset
         const next_local_page_requested = (this.state.page + offset <= 0) ? 0 : this.state.page + offset;
-        const total_local_page = Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page());
+        const total_local_page = Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.getPageRowDisplay());
         let next_local_page_state = 0;
 
         if (next_local_page_requested < 0) {
@@ -210,20 +200,20 @@ export default class App extends React.Component {
         const swap_results_page = this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
 
         // Determine if we've cycled up & down past the mid-way point of the remote page
-        const direction_up   = next_local_page_state * this.state.rows_per_page() - (current_results_page * remote_max_query) > Math.floor(remote_max_query / 2) && this.state.page > this.state.previous_page;
-        const direction_down = next_local_page_state * this.state.rows_per_page() - (current_results_page * remote_max_query) < Math.floor(remote_max_query / 2) && this.state.page < this.state.previous_page;
+        const direction_up   = next_local_page_state * this.getPageRowDisplay() - (current_results_page * remote_max_query) > Math.floor(remote_max_query / 2) && this.state.page > this.state.previous_page;
+        const direction_down = next_local_page_state * this.getPageRowDisplay() - (current_results_page * remote_max_query) < Math.floor(remote_max_query / 2) && this.state.page < this.state.previous_page;
 
         // Determine if we're swapping buffers
-        const ne_current_offset = Math.floor(next_local_page_state * this.state.rows_per_page() / remote_max_query) !== current_results_page;
+        const ne_current_offset = Math.floor(next_local_page_state * this.getPageRowDisplay() / remote_max_query) !== current_results_page;
         
         // Create offset value for new pre-fetch query according to specified input offset and within the bounds of min/max pagination values
-        const new_offset = (Math.floor(next_local_page_state * this.state.rows_per_page() / remote_max_query) + offset <= 0)
+        const new_offset = (Math.floor(next_local_page_state * this.getPageRowDisplay() / remote_max_query) + offset <= 0)
             ? 0
-            : Math.floor(next_local_page_state * this.state.rows_per_page() / remote_max_query) + offset;
+            : Math.floor(next_local_page_state * this.getPageRowDisplay() / remote_max_query) + offset;
         
         // Calculate missing entries from current buffer to fill last page
-        const max_mod_pages = Math.floor(remote_max_query % this.state.rows_per_page());
-        const total_missing_buffer = this.state.rows_per_page() - max_mod_pages + (max_mod_pages * current_results_page);
+        const max_mod_pages = Math.floor(remote_max_query % this.getPageRowDisplay());
+        const total_missing_buffer = this.getPageRowDisplay() - max_mod_pages + (max_mod_pages * current_results_page);
 
         if (this.state.result_offset !== total_missing_buffer) this.setState({ result_offset: total_missing_buffer });
 
@@ -272,7 +262,7 @@ export default class App extends React.Component {
             // Current page information
             const current_remote_page = this.state.result.data[API_RESULT_KEYS.PAGE];
             const current_swap_remote_page = this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
-            const required_remote_page = Math.floor(this.state.page * this.state.rows_per_page() / this.state.result.data[API_RESULT_KEYS.MAX_QUERY]);
+            const required_remote_page = Math.floor(this.state.page * this.getPageRowDisplay() / this.state.result.data[API_RESULT_KEYS.MAX_QUERY]);
     
             // Check if required page is same as current page
             const ne_local_remote_page = required_remote_page !== current_remote_page;
@@ -295,19 +285,19 @@ export default class App extends React.Component {
                 }
 
                 // Fill swap buffer with closest next page
-                const closest_swap_page = (this.state.page * this.state.rows_per_page() - (this.state.result.data[API_RESULT_KEYS.PAGE] * this.state.result.data[API_RESULT_KEYS.MAX_QUERY]) >= Math.floor(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] / 2))
-                ? Math.min(Math.ceil(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] / this.state.rows_per_page()), this.state.result.data[API_RESULT_KEYS.PAGE] + 1)
+                const closest_swap_page = (this.state.page * this.getPageRowDisplay() - (this.state.result.data[API_RESULT_KEYS.PAGE] * this.state.result.data[API_RESULT_KEYS.MAX_QUERY]) >= Math.floor(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] / 2))
+                ? Math.min(Math.ceil(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] / this.getPageRowDisplay()), this.state.result.data[API_RESULT_KEYS.PAGE] + 1)
                 : Math.max(0, this.state.result.data[API_RESULT_KEYS.PAGE] - 1);
             
-                const ne_required_swap_page = Math.floor(this.state.page * this.state.rows_per_page() / this.state.result_prefetch.data[API_RESULT_KEYS.MAX_QUERY]) !== this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
+                const ne_required_swap_page = Math.floor(this.state.page * this.getPageRowDisplay() / this.state.result_prefetch.data[API_RESULT_KEYS.MAX_QUERY]) !== this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
                 if (ne_required_swap_page) {
                     console.log('new swap page', closest_swap_page);
                     await this.lineSearch(false, true, closest_swap_page);
                 }
 
                 // Update overflow buffer with new swap buffer
-                const max_mod_pages = Math.floor(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] % this.state.rows_per_page());
-                const total_missing_buffer = this.state.rows_per_page() - max_mod_pages + (max_mod_pages * this.state.result.data[API_RESULT_KEYS.PAGE]);
+                const max_mod_pages = Math.floor(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] % this.getPageRowDisplay());
+                const total_missing_buffer = this.getPageRowDisplay() - max_mod_pages + (max_mod_pages * this.state.result.data[API_RESULT_KEYS.PAGE]);
 
                 if (total_missing_buffer > 0) {
                     this.setState({
@@ -493,10 +483,47 @@ export default class App extends React.Component {
         }
     }
 
+    areReferencesReady() {
+        const references_ready = this.tableBody.current !== null
+                                 && this.projectsInput.current !== null
+                                 && this.episodesInput.current !== null
+                                 && this.charactersInput.current !== null
+                                 && this.linesInput.current !== null
+                                 && this.tableHeader.current !== null
+                                 && this.tableBody.current !== null
+                                 && this.appHeader.current !== null
+                                 && this.appSearchBar.current !== null
+                                 && this.appPageSettings.current !== null;
+
+        return references_ready;
+    }
+
     refreshTable() {
-        document.documentElement.style.setProperty('--table-max-size', `${this.getAvailableTableSpacePx() - this.appPageSettings.current.offsetHeight}px`);
-        document.documentElement.style.setProperty('--table-data-max-size', `${this.getAvailableTableSpacePx() - this.appPageSettings.current.offsetHeight}px`);
-        document.documentElement.style.setProperty('--table-row-height', `${this.table_row_size_px}px`);
+        // Make sure DOM references have been set
+        if (this.areReferencesReady()) {
+            document.documentElement.style.setProperty('--table-max-size', `${this.getAvailableTableSpacePx()}px`);
+            document.documentElement.style.setProperty('--table-data-max-size', `${this.getAvailableTableSpacePx() - this.tableHeader.current.offsetHeight}px`);
+            document.documentElement.style.setProperty('--table-row-height', `${this.getRowSizePx()['size_px']}px`);
+        }
+    }
+
+    getBackgroundColor() {
+        let background_color = '#4da4f6';
+
+        // RED: Error result
+        // GREEN: Success result
+
+        const successful_results = this.state.successful_results;
+        const have_results = this.state.result.data[API_RESULT_KEYS.TOTAL_RESULTS] > 0;
+        const new_search = this.state.current_query_parameters
+
+        if (have_results) {
+            background_color = '#007e00';
+        } else if (successful_results && !have_results) {
+            background_color = '#ff572d';
+        }
+
+        return background_color;
     }
 
     componentDidMount() {
@@ -504,6 +531,11 @@ export default class App extends React.Component {
         window.addEventListener('keydown', async (e) => {
             // console.log(e.key);
             // console.log(this.state.btn_last_pressed);
+
+            // Developer keys
+            if (e.key === '\`') {
+                this.getRowSizePx();
+            }
             
             // Get modifier state
             const modifier_key = (window.navigator.platform === 'Win32') ? (e.ctrlKey && e.shiftKey) : e.metaKey;
@@ -535,7 +567,7 @@ export default class App extends React.Component {
                     {key: 'characters', element: this.charactersInput.current },
                     {key: 'lines',      element: this.linesInput.current      }
                 ];
-
+                
                 let active = '';
                 for (const input of inputs) {
                     const is_same = document.activeElement === input['element'];
@@ -547,9 +579,14 @@ export default class App extends React.Component {
                 if (active !== '') {
                     this.updateFieldState(active, '');
                 }
+
+                // Reset state if all fields are empty
+                const are_fields_empty = this.areFieldsEmpty();
+                if (are_fields_empty) this.setState({ successful_results: !are_fields_empty });
             }
             
             // Clear clear search results on 2x Escape
+            // ANUPAMAA
             if (e.key === 'Escape' && this.state.btn_last_pressed === 'Escape' && !this.state.key_timed_out)
             {
                 this.clearSearch(true);
@@ -596,19 +633,19 @@ export default class App extends React.Component {
 
         // Window resizing event listener
         window.addEventListener('resize', (e) => {
-            if (this.state.rows_per_page() !== total_rows_table()) {
+            if (this.getPageRowDisplay() !== this.getRowSizePx()['total_fit']) {
                 // Handle total row change
                 const updated_options = this.state.page_display_options.map((c, i) => {
-                    if (i === 0) return total_rows_table();
+                    if (i === 0) return this.getRowSizePx()['total_fit'];
                     else return c;
                 });
                 this.setState({ page_display_options: updated_options });
 
                 // Handle new last page
-                if (this.state.page >= Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page()) - 1) {
+                if (this.state.page >= Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.getPageRowDisplay()) - 1) {
                     this.setState({
-                        page: Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page()) - 1,
-                        previous_page: Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.state.rows_per_page()) - 2
+                        page: Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.getPageRowDisplay()) - 1,
+                        previous_page: Math.ceil(this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] / this.getPageRowDisplay()) - 2
                     });
                 }
 
@@ -622,7 +659,7 @@ export default class App extends React.Component {
         });
 
         // Update page display based on mounted DOM references
-        this.setState({ page_display_options: [Math.floor(this.getAvailableTableSpacePx() / this.table_row_size_px), 50, 125, 250] });
+        this.setState({ page_display_options: [this.getRowSizePx()['total_fit'], 50, 125, 250] });
 
         // Reset computed CSS properties for table display
         this.refreshTable();
@@ -645,16 +682,7 @@ export default class App extends React.Component {
 
     render() {
         // Handle background color based on query results
-        let backgroundColor = '#4da4f6';
-        const are_fields_empty = this.state.are_fields_empty()
-                                 && !this.state.successful_results
-                                 && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] === 0;
-
-        if (!are_fields_empty && this.state.successful_results
-            && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] > 0) backgroundColor = '#007e00';
-
-        else if (!are_fields_empty && this.state.successful_results
-                 && this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY] <= 0) backgroundColor = '#ff572d';
+        const backgroundColor = this.getBackgroundColor();
 
         return (
             <div style={{ backgroundColor: backgroundColor }} className='App'>
@@ -684,7 +712,7 @@ export default class App extends React.Component {
                 <div className='table-wrapper'>
                     <Table
                         page={this.state.page}
-                        rowsPerPage={this.state.rows_per_page()}
+                        rowsPerPage={this.getPageRowDisplay()}
                         searchResult={this.state.result}
                         overflowResult={this.state.result_overflow}
                         resultOffset={this.state.result_offset}
@@ -694,6 +722,7 @@ export default class App extends React.Component {
                             updateTableBodyRef: (ref) => { this.setAppRefs([{ tableBody: ref }]);   },
                         }}
                     />
+                    <div className='dummy-bottom-spacer'></div>
                     <div ref={this.appPageSettings} className='table-nav-container'>
                         <OptionsButton
                             currentOptionIndex={this.state.page_display_selection}
@@ -704,11 +733,12 @@ export default class App extends React.Component {
                         <TablePagination
                             className='pagination-bar'
                             results={this.state.result}
+                            refreshTableCallback={() => { this.refreshTable(); }}
                             page={this.state.page}
-                            rowsPerPage={this.state.rows_per_page()}
+                            rowsPerPage={this.getPageRowDisplay()}
                             updatePageCallback={(v) => { this.offsetPage(v); }}
                         />
-                        <div style={{ marginRight: '3em', visibility: 'hidden' }}>{this.state.rows_per_page()}</div>
+                        <div style={{ marginRight: '3rem', visibility: 'hidden' }}>{this.getPageRowDisplay()}</div>
                     </div>
                 </div>
             </div>
