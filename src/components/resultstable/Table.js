@@ -29,40 +29,7 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
     const index_end = (index_start + rowsPerPage >= results.length) ? results.length : index_start + rowsPerPage;
     
     // Check if searchResults are valid and parse results
-    let table_data = [];
-    if (loadingState) {
-        for (let i = 0; i < rowsPerPage; i++) {
-            table_data.push((
-                <tr className='result-row-height result-row'>
-                    <td>
-                        <div className='row-single-content-nowrap'></div>
-                    </td>
-                    <td>
-                        <div className='row-single-content-nowrap'></div>
-                    </td>
-                    <td>
-                        <div className='row-single-content'></div>
-                    </td>
-                    <td>
-                        <div className='row-single-content-nowrap'></div>
-                    </td>
-                    <td>
-                        <div className='row-single-content'></div>
-                    </td>
-                    <td>
-                        <div className='row-single-content'></div>
-                    </td>
-                    <td>
-                        <div className='row-single-content'></div>
-                    </td>
-                    <td>
-                        <div className='row-single-content-nowrap'></div>
-                    </td>
-                </tr>
-            ));
-        }
-    } else {
-        table_data = results.slice(index_start, index_end)
+    const table_data = results.slice(index_start, index_end)
             .map((found, index) => {
                 // Convert timecode ticks to SMPTE frame timecode
                 const tc_in = float_to_tc(found[API_RESULT_KEYS.TIMECODE][0], found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
@@ -98,7 +65,6 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
                     </tr>
                 );
             });
-    }
     
     return (
         <div className='table-container'>
