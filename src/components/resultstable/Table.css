@@ -85,7 +85,7 @@ tr {
   width: 100%;
 }
 
-tr.result-row {
+tr.result-row-height {
   height: var(--table-row-height);
 }
 

@@ -3,7 +3,6 @@ import './Table.css';
 import { API_RESULT_KEYS } from '../../http/ApiClient.js';
 import { IconButton } from '@mui/material';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import LoadingButton from '@mui/lab/LoadingButton';
 import { float_to_tc } from '../../utils/Timecode.js';
 
 export default function Table({ page, rowsPerPage, searchResult, overflowResult, resultOffset, loadingState, setRefCallbacks }) {
@@ -30,42 +29,76 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
     const index_end = (index_start + rowsPerPage >= results.length) ? results.length : index_start + rowsPerPage;
     
     // Check if searchResults are valid and parse results
-    const table_data = results.slice(index_start, index_end)
-        .map((found, index) => {
-            // Convert timecode ticks to SMPTE frame timecode
-            const tc_in = float_to_tc(found[API_RESULT_KEYS.TIMECODE][0], found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
-            const tc_out = float_to_tc(found[API_RESULT_KEYS.TIMECODE][1], found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
-            const tc_length = float_to_tc((found[API_RESULT_KEYS.TIMECODE][1] - found[API_RESULT_KEYS.TIMECODE][0]), found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
-
-            return (
-                <tr key={index} className='result-row'>
+    let table_data = [];
+    if (loadingState) {
+        for (let i = 0; i < rowsPerPage; i++) {
+            table_data.push((
+                <tr className='result-row-height result-row'>
                     <td>
-                        <div className='row-single-content-nowrap'>{index}</div>
+                        <div className='row-single-content-nowrap'></div>
                     </td>
                     <td>
-                        <div className='row-single-content-nowrap'>{found[API_RESULT_KEYS.PROJECT]}</div>
+                        <div className='row-single-content-nowrap'></div>
                     </td>
                     <td>
-                        <div className='row-single-content'>{found[API_RESULT_KEYS.SEGMENT]}</div>
+                        <div className='row-single-content'></div>
                     </td>
                     <td>
-                        <div className='row-single-content-nowrap'>{found[API_RESULT_KEYS.CHARACTER]}</div>
+                        <div className='row-single-content-nowrap'></div>
                     </td>
                     <td>
-                        <div className='row-single-content'>{tc_in}</div>
+                        <div className='row-single-content'></div>
                     </td>
                     <td>
-                        <div className='row-single-content'>{tc_out}</div>
+                        <div className='row-single-content'></div>
                     </td>
                     <td>
-                        <div className='row-single-content'>{tc_length}</div>
+                        <div className='row-single-content'></div>
                     </td>
                     <td>
-                        <div className='row-single-content-nowrap'>{found[API_RESULT_KEYS.LINE]}</div>
+                        <div className='row-single-content-nowrap'></div>
                     </td>
                 </tr>
-            );
-        });
+            ));
+        }
+    } else {
+        table_data = results.slice(index_start, index_end)
+            .map((found, index) => {
+                // Convert timecode ticks to SMPTE frame timecode
+                const tc_in = float_to_tc(found[API_RESULT_KEYS.TIMECODE][0], found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
+                const tc_out = float_to_tc(found[API_RESULT_KEYS.TIMECODE][1], found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
+                const tc_length = float_to_tc((found[API_RESULT_KEYS.TIMECODE][1] - found[API_RESULT_KEYS.TIMECODE][0]), found[API_RESULT_KEYS.FRAME_RATE], found[API_RESULT_KEYS.TICK_RATE]);
+    
+                return (
+                    <tr key={index} className='result-row-height result-row'>
+                        <td>
+                            <div className='row-single-content-nowrap'>{index}</div>
+                        </td>
+                        <td>
+                            <div className='row-single-content-nowrap'>{found[API_RESULT_KEYS.PROJECT]}</div>
+                        </td>
+                        <td>
+                            <div className='row-single-content'>{found[API_RESULT_KEYS.SEGMENT]}</div>
+                        </td>
+                        <td>
+                            <div className='row-single-content-nowrap'>{found[API_RESULT_KEYS.CHARACTER]}</div>
+                        </td>
+                        <td>
+                            <div className='row-single-content'>{tc_in}</div>
+                        </td>
+                        <td>
+                            <div className='row-single-content'>{tc_out}</div>
+                        </td>
+                        <td>
+                            <div className='row-single-content'>{tc_length}</div>
+                        </td>
+                        <td>
+                            <div className='row-single-content-nowrap'>{found[API_RESULT_KEYS.LINE]}</div>
+                        </td>
+                    </tr>
+                );
+            });
+    }
     
     return (
         <div className='table-container'>
@@ -87,8 +120,6 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
                         table_data.length > 0
                         &&
                         table_data
-                        ||
-                        <LoadingButton variant='text' loading={loadingState} disabled={false}/>
                     }
                 </tbody>
             </table>

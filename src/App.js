@@ -8,9 +8,37 @@ import buildQueryString from './utils/QueryUrl.js';
 import { epRangesToSequences } from './components/searchbar/EpRange.js';
 import TablePagination from './components/resultstable/UsePagination';
 import OptionsButton from './components/buttons/OptionsButton.js'
-import { ThermostatOutlined } from '@mui/icons-material';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import LinearProgress from '@mui/material/LinearProgress';
+import Box from '@mui/material/Box';
 
-const result_default = {
+
+// Styling theme globals
+const APP_COLOUR_PRIMARY_BLUE = "#4da4f6";
+const APP_COLOUR_PRIMARY_GREEN = "#007e00";
+const APP_COLOUR_PRIMARY_RED = "#ff572d";
+const APP_COLOUR_PRIMARY_WHITE = "#EEEEEE";
+const APP_COLOUR_SECOND_WHITE = "#AAAAAA";
+
+const APP_THEME = createTheme({
+    components: {
+        MuiLinearProgress: {
+            styleOverrides: {
+                bar1Indeterminate: {
+                    backgroundColor: APP_COLOUR_PRIMARY_BLUE
+                },
+
+                bar2Indeterminate: {
+                    backgroundColor: APP_COLOUR_PRIMARY_BLUE
+                }
+            }
+        }
+    }
+});
+
+
+// App class globals
+const APP_RESULT_DEFAULT = {
     query: '',
     query_params: [],
     data: {
@@ -50,13 +78,13 @@ export default class App extends React.Component {
             },
 
             // Buffer and control variables for managing results from API
-            result: result_default,
+            result: APP_RESULT_DEFAULT,
             result_overflow: [],
             result_overflow_page: 0,
             result_offset: 0,
             
             // For prefetching data
-            result_prefetch: result_default,
+            result_prefetch_1: APP_RESULT_DEFAULT,
 
             // Loading control variables for API queries
             awaiting_results: false,
@@ -136,7 +164,7 @@ export default class App extends React.Component {
     }
 
     getBackgroundColor() {
-        let background_color = '#4da4f6';
+        let background_color = APP_COLOUR_PRIMARY_BLUE;
 
         // RED: Error result
         // GREEN: Success result
@@ -146,9 +174,9 @@ export default class App extends React.Component {
         const new_search = this.state.current_query_parameters
 
         if (have_results) {
-            background_color = '#007e00';
-        } else if (successful_results && !have_results) {
-            background_color = '#ff572d';
+            background_color = APP_COLOUR_PRIMARY_GREEN;
+        } else if (successful_results && !have_results && !this.state.awaiting_results) {
+            background_color = APP_COLOUR_PRIMARY_RED;
         }
 
         return background_color;
@@ -231,7 +259,7 @@ export default class App extends React.Component {
         // Pages for local current results and swap buffer results
         const remote_max_query = this.state.result.data[API_RESULT_KEYS.MAX_QUERY];
         const current_results_page = this.state.result.data[API_RESULT_KEYS.PAGE];
-        const swap_results_page = this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
+        const swap_results_page = this.state.result_prefetch_1.data[API_RESULT_KEYS.PAGE];
 
         // Determine if we've cycled up & down past the mid-way point of the remote page
         const direction_up   = next_local_page_state * this.getPageRowDisplay() - (current_results_page * remote_max_query) > Math.floor(remote_max_query / 2) && this.state.page > this.state.previous_page;
@@ -259,14 +287,14 @@ export default class App extends React.Component {
             // TODO: Add promise failure callback
             this.lineSearch(false, true, new_offset).then(() => {
                 this.setState({
-                    result_overflow: this.state.result_prefetch.data[API_RESULT_KEYS.RESULTS].slice(0, this.state.result_offset),
+                    result_overflow: this.state.result_prefetch_1.data[API_RESULT_KEYS.RESULTS].slice(0, this.state.result_offset),
                     result_overflow_page: swap_results_page
                 });
             });
         }
 
         // Fill overflow buffer when empty and prefetch data is available
-        const prefetch_ready = this.state.result_prefetch.data[API_RESULT_KEYS.RESULTS].length > 0;
+        const prefetch_ready = this.state.result_prefetch_1.data[API_RESULT_KEYS.RESULTS].length > 0;
         const overflow_same = this.state.result_overflow_page === current_results_page;
 
         if (total_missing_buffer > 0
@@ -274,7 +302,7 @@ export default class App extends React.Component {
             && prefetch_ready)
         {
             this.setState({
-                result_overflow: this.state.result_prefetch.data[API_RESULT_KEYS.RESULTS].slice(0, total_missing_buffer),
+                result_overflow: this.state.result_prefetch_1.data[API_RESULT_KEYS.RESULTS].slice(0, total_missing_buffer),
                 result_overflow_page: swap_results_page
             });
         }
@@ -356,7 +384,7 @@ export default class App extends React.Component {
              // Clear current results
             this.setState({
                  page: 0,
-                 result: result_default,
+                 result: APP_RESULT_DEFAULT,
                  current_query: qry_href,
                  current_query_parameters: {
                     projects: list_projects,
@@ -390,7 +418,7 @@ export default class App extends React.Component {
             // Check if data is valid and store relevant data in payload
             const qry_data = ((qry_response.status === 200)
                 ? qry_response.data
-                : result_default.data
+                : APP_RESULT_DEFAULT.data
             );
             
             const results = {
@@ -402,7 +430,7 @@ export default class App extends React.Component {
             // Set state for results
             // TODO: Manage syncronisation of swap buffers
             if (prefetch) {
-                this.setState({result_prefetch: results});
+                this.setState({result_prefetch_1: results});
             } else {
                 this.setState({result: results});
             }
@@ -430,13 +458,13 @@ export default class App extends React.Component {
         if (clear_results) {
             this.setState({
                 page: 0,
-                result: result_default,
+                result: APP_RESULT_DEFAULT,
                 result_overflow : [],
                 result_overflow_page: 0,
                 result_offset: 0,
                 current_query: '',
                 successful_results: false,
-                result_prefetch: result_default,
+                result_prefetch_1: APP_RESULT_DEFAULT,
                 awaiting_results: false
             });
         }
@@ -447,7 +475,7 @@ export default class App extends React.Component {
         if (!this.state.awaiting_results) {
             // Current page information
             const current_remote_page = this.state.result.data[API_RESULT_KEYS.PAGE];
-            const current_swap_remote_page = this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
+            const current_swap_remote_page = this.state.result_prefetch_1.data[API_RESULT_KEYS.PAGE];
             const required_remote_page = Math.floor(this.state.page * this.getPageRowDisplay() / this.state.result.data[API_RESULT_KEYS.MAX_QUERY]);
 
             // Check if required page is same as current page
@@ -475,7 +503,7 @@ export default class App extends React.Component {
                 ? Math.min(Math.ceil(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] / this.getPageRowDisplay()), this.state.result.data[API_RESULT_KEYS.PAGE] + 1)
                 : Math.max(0, this.state.result.data[API_RESULT_KEYS.PAGE] - 1);
             
-                const ne_required_swap_page = Math.floor(this.state.page * this.getPageRowDisplay() / this.state.result_prefetch.data[API_RESULT_KEYS.MAX_QUERY]) !== this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
+                const ne_required_swap_page = Math.floor(this.state.page * this.getPageRowDisplay() / this.state.result_prefetch_1.data[API_RESULT_KEYS.MAX_QUERY]) !== this.state.result_prefetch_1.data[API_RESULT_KEYS.PAGE];
                 if (ne_required_swap_page) {
                     console.log('new swap page', closest_swap_page);
                     await this.lineSearch(false, true, closest_swap_page);
@@ -487,8 +515,8 @@ export default class App extends React.Component {
 
                 if (total_missing_buffer > 0) {
                     this.setState({
-                        result_overflow: this.state.result_prefetch.data[API_RESULT_KEYS.RESULTS].slice(0, total_missing_buffer),
-                        result_overflow_page: this.state.result_prefetch.data[API_RESULT_KEYS.PAGE]
+                        result_overflow: this.state.result_prefetch_1.data[API_RESULT_KEYS.RESULTS].slice(0, total_missing_buffer),
+                        result_overflow_page: this.state.result_prefetch_1.data[API_RESULT_KEYS.PAGE]
                     });
                 } else {
                     this.setState({
@@ -510,10 +538,10 @@ export default class App extends React.Component {
             result_overflow: temp_overflow,
 
             // Set current buffers to prefetch data
-            result: this.state.result_prefetch,
+            result: this.state.result_prefetch_1,
             
             // Set prefetch buffers to current results
-            result_prefetch: temp_result
+            result_prefetch_1: temp_result
         });
     }
 
@@ -686,6 +714,15 @@ export default class App extends React.Component {
 
         return (
             <div style={{ backgroundColor: backgroundColor }} className='App'>
+                {
+                    this.state.awaiting_results
+                    &&
+                    <ThemeProvider theme={APP_THEME}>
+                        <Box sx={{ width: '100%', position: 'absolute', left: '0px', top: '0px' }}>
+                            <LinearProgress variant='query'/>
+                        </Box>
+                    </ThemeProvider>
+                }
                 <h1 ref={this.appHeader} className='header'>AAP Lore</h1>
                 <Searchbar
                     updateFieldCallbacks={{
