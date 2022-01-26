@@ -135,11 +135,45 @@ export default class App extends React.Component {
         return this.state.page_display_options[this.state.page_display_selection];
     }
 
+    getBackgroundColor() {
+        let background_color = '#4da4f6';
+
+        // RED: Error result
+        // GREEN: Success result
+
+        const successful_results = this.state.successful_results;
+        const have_results = this.state.result.data[API_RESULT_KEYS.TOTAL_RESULTS] > 0;
+        const new_search = this.state.current_query_parameters
+
+        if (have_results) {
+            background_color = '#007e00';
+        } else if (successful_results && !have_results) {
+            background_color = '#ff572d';
+        }
+
+        return background_color;
+    }
+
     areFieldsEmpty() {
         return this.state.projects === ''   &&
                this.state.characters === '' &&
                this.state.episodes === ''   &&
                this.state.lines === '';
+    }
+
+    areReferencesReady() {
+        const references_ready = this.tableBody.current !== null
+                                 && this.projectsInput.current !== null
+                                 && this.episodesInput.current !== null
+                                 && this.charactersInput.current !== null
+                                 && this.linesInput.current !== null
+                                 && this.tableHeader.current !== null
+                                 && this.tableBody.current !== null
+                                 && this.appHeader.current !== null
+                                 && this.appSearchBar.current !== null
+                                 && this.appPageSettings.current !== null;
+
+        return references_ready;
     }
 
     toggleTextInput(direction = 1) {
@@ -254,81 +288,6 @@ export default class App extends React.Component {
         // Update page state
         this.updateFieldState('previous_page', this.state.page);
         this.updateFieldState('page', next_local_page_state);
-    }
-
-    async updateBuffers() {
-        console.log('awaiting results', this.state.awaiting_results);
-        if (!this.state.awaiting_results) {
-            // Current page information
-            const current_remote_page = this.state.result.data[API_RESULT_KEYS.PAGE];
-            const current_swap_remote_page = this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
-            const required_remote_page = Math.floor(this.state.page * this.getPageRowDisplay() / this.state.result.data[API_RESULT_KEYS.MAX_QUERY]);
-    
-            // Check if required page is same as current page
-            const ne_local_remote_page = required_remote_page !== current_remote_page;
-    
-            // Check if required data is present in swap buffer
-            const ne_required_page_in_swap = required_remote_page !== current_swap_remote_page;
-    
-            if (ne_local_remote_page) {
-                const new_offset = Math.max(0, required_remote_page);
-    
-                console.log('new page', new_offset);
-    
-                // Fill primary results buffer with new page
-                if (ne_required_page_in_swap) {
-                    console.log('resize new search');
-                    await this.lineSearch(false, false, new_offset);
-                } else {
-                    console.log('resize swap');
-                    this.swapResultBuffers(true);
-                }
-
-                // Fill swap buffer with closest next page
-                const closest_swap_page = (this.state.page * this.getPageRowDisplay() - (this.state.result.data[API_RESULT_KEYS.PAGE] * this.state.result.data[API_RESULT_KEYS.MAX_QUERY]) >= Math.floor(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] / 2))
-                ? Math.min(Math.ceil(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] / this.getPageRowDisplay()), this.state.result.data[API_RESULT_KEYS.PAGE] + 1)
-                : Math.max(0, this.state.result.data[API_RESULT_KEYS.PAGE] - 1);
-            
-                const ne_required_swap_page = Math.floor(this.state.page * this.getPageRowDisplay() / this.state.result_prefetch.data[API_RESULT_KEYS.MAX_QUERY]) !== this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
-                if (ne_required_swap_page) {
-                    console.log('new swap page', closest_swap_page);
-                    await this.lineSearch(false, true, closest_swap_page);
-                }
-
-                // Update overflow buffer with new swap buffer
-                const max_mod_pages = Math.floor(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] % this.getPageRowDisplay());
-                const total_missing_buffer = this.getPageRowDisplay() - max_mod_pages + (max_mod_pages * this.state.result.data[API_RESULT_KEYS.PAGE]);
-
-                if (total_missing_buffer > 0) {
-                    this.setState({
-                        result_overflow: this.state.result_prefetch.data[API_RESULT_KEYS.RESULTS].slice(0, total_missing_buffer),
-                        result_overflow_page: this.state.result_prefetch.data[API_RESULT_KEYS.PAGE]
-                    });
-                } else {
-                    this.setState({
-                        result_overflow: [],
-                        result_overflow_page: 0
-                    });
-                }
-            }
-        }
-    }
-
-    swapResultBuffers(reset_overflow = false) {
-        // Temporarily store current results
-        const temp_result = this.state.result;
-        const temp_overflow = (reset_overflow) ? [] : this.state.result.data[API_RESULT_KEYS.RESULTS].slice(0, this.state.result_offset);
-
-        this.setState({
-            // Update overflow buffers with new prefetched buffer data
-            result_overflow: temp_overflow,
-
-            // Set current buffers to prefetch data
-            result: this.state.result_prefetch,
-            
-            // Set prefetch buffers to current results
-            result_prefetch: temp_result
-        });
     }
 
     // Callback method for preparing user search inputs and querying database
@@ -483,19 +442,79 @@ export default class App extends React.Component {
         }
     }
 
-    areReferencesReady() {
-        const references_ready = this.tableBody.current !== null
-                                 && this.projectsInput.current !== null
-                                 && this.episodesInput.current !== null
-                                 && this.charactersInput.current !== null
-                                 && this.linesInput.current !== null
-                                 && this.tableHeader.current !== null
-                                 && this.tableBody.current !== null
-                                 && this.appHeader.current !== null
-                                 && this.appSearchBar.current !== null
-                                 && this.appPageSettings.current !== null;
+    async refreshBuffers() {
+        console.log('awaiting results', this.state.awaiting_results);
+        if (!this.state.awaiting_results) {
+            // Current page information
+            const current_remote_page = this.state.result.data[API_RESULT_KEYS.PAGE];
+            const current_swap_remote_page = this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
+            const required_remote_page = Math.floor(this.state.page * this.getPageRowDisplay() / this.state.result.data[API_RESULT_KEYS.MAX_QUERY]);
 
-        return references_ready;
+            // Check if required page is same as current page
+            const ne_local_remote_page = required_remote_page !== current_remote_page;
+    
+            // Check if required data is present in swap buffer
+            const ne_required_page_in_swap = required_remote_page !== current_swap_remote_page;
+    
+            if (ne_local_remote_page) {
+                const new_offset = Math.max(0, required_remote_page);
+    
+                console.log('new page', new_offset);
+    
+                // Fill primary results buffer with new page
+                if (ne_required_page_in_swap) {
+                    console.log('resize new search');
+                    await this.lineSearch(false, false, new_offset);
+                } else {
+                    console.log('resize swap');
+                    this.swapResultBuffers(true);
+                }
+
+                // Fill swap buffer with closest next page
+                const closest_swap_page = (this.state.page * this.getPageRowDisplay() - (this.state.result.data[API_RESULT_KEYS.PAGE] * this.state.result.data[API_RESULT_KEYS.MAX_QUERY]) >= Math.floor(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] / 2))
+                ? Math.min(Math.ceil(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] / this.getPageRowDisplay()), this.state.result.data[API_RESULT_KEYS.PAGE] + 1)
+                : Math.max(0, this.state.result.data[API_RESULT_KEYS.PAGE] - 1);
+            
+                const ne_required_swap_page = Math.floor(this.state.page * this.getPageRowDisplay() / this.state.result_prefetch.data[API_RESULT_KEYS.MAX_QUERY]) !== this.state.result_prefetch.data[API_RESULT_KEYS.PAGE];
+                if (ne_required_swap_page) {
+                    console.log('new swap page', closest_swap_page);
+                    await this.lineSearch(false, true, closest_swap_page);
+                }
+
+                // Update overflow buffer with new swap buffer
+                const max_mod_pages = Math.floor(this.state.result.data[API_RESULT_KEYS.MAX_QUERY] % this.getPageRowDisplay());
+                const total_missing_buffer = this.getPageRowDisplay() - max_mod_pages + (max_mod_pages * this.state.result.data[API_RESULT_KEYS.PAGE]);
+
+                if (total_missing_buffer > 0) {
+                    this.setState({
+                        result_overflow: this.state.result_prefetch.data[API_RESULT_KEYS.RESULTS].slice(0, total_missing_buffer),
+                        result_overflow_page: this.state.result_prefetch.data[API_RESULT_KEYS.PAGE]
+                    });
+                } else {
+                    this.setState({
+                        result_overflow: [],
+                        result_overflow_page: 0
+                    });
+                }
+            }
+        }
+    }
+
+    swapResultBuffers(reset_overflow = false) {
+        // Temporarily store current results
+        const temp_result = this.state.result;
+        const temp_overflow = (reset_overflow) ? [] : this.state.result.data[API_RESULT_KEYS.RESULTS].slice(0, this.state.result_offset);
+
+        this.setState({
+            // Update overflow buffers with new prefetched buffer data
+            result_overflow: temp_overflow,
+
+            // Set current buffers to prefetch data
+            result: this.state.result_prefetch,
+            
+            // Set prefetch buffers to current results
+            result_prefetch: temp_result
+        });
     }
 
     refreshTable() {
@@ -505,25 +524,6 @@ export default class App extends React.Component {
             document.documentElement.style.setProperty('--table-data-max-size', `${this.getAvailableTableSpacePx() - this.tableHeader.current.offsetHeight}px`);
             document.documentElement.style.setProperty('--table-row-height', `${this.getRowSizePx()['size_px']}px`);
         }
-    }
-
-    getBackgroundColor() {
-        let background_color = '#4da4f6';
-
-        // RED: Error result
-        // GREEN: Success result
-
-        const successful_results = this.state.successful_results;
-        const have_results = this.state.result.data[API_RESULT_KEYS.TOTAL_RESULTS] > 0;
-        const new_search = this.state.current_query_parameters
-
-        if (have_results) {
-            background_color = '#007e00';
-        } else if (successful_results && !have_results) {
-            background_color = '#ff572d';
-        }
-
-        return background_color;
     }
 
     componentDidMount() {
@@ -650,7 +650,7 @@ export default class App extends React.Component {
                 }
 
                 // Handle data in buffers according to new page sizing
-                this.updateBuffers();
+                this.refreshBuffers();
             }
 
             
@@ -728,7 +728,7 @@ export default class App extends React.Component {
                             currentOptionIndex={this.state.page_display_selection}
                             optionsList={this.state.page_display_options}
                             displayValue={(index, value) => (index > 0) ? `Display: ${value}` : 'Display: Fit' }
-                            updateCallback={(value) => { if (value >= this.state.page_display_options.length) value = 0; this.updateFieldState('page_display_selection', value); this.refreshTable(); }}
+                            updateCallback={(value) => { if (value >= this.state.page_display_options.length) value = 0; this.updateFieldState('page_display_selection', value); this.refreshBuffers(); this.refreshTable(); }}
                         />
                         <TablePagination
                             className='pagination-bar'
