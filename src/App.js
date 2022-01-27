@@ -11,6 +11,7 @@ import OptionsButton from './components/buttons/OptionsButton.js'
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import LinearProgress from '@mui/material/LinearProgress';
 import Box from '@mui/material/Box';
+import { array_is_same } from './utils/Algorithm.js';
 
 
 // Styling theme globals
@@ -52,6 +53,16 @@ const APP_RESULT_DEFAULT = {
     }
 };
 
+const APP_QUERYPARAMS_DEFAULT = {
+    projects: [],
+    characters: [],
+    episodes: [],
+    lines: [],
+    page: 0,
+    offset: 0,
+    limit: 0
+};
+
 export default class App extends React.Component {
     constructor(props) {
         // Call parent constructor
@@ -67,15 +78,7 @@ export default class App extends React.Component {
             current_input_focus: 0,
             current_query: '',
             successful_results: false,
-            current_query_parameters: {
-                projects: [],
-                characters: [],
-                episodes: [],
-                lines: [],
-                page: 0,
-                offset: 0,
-                limit: 0
-            },
+            current_query_parameters: APP_QUERYPARAMS_DEFAULT,
 
             // Buffer and control variables for managing results from API
             result: APP_RESULT_DEFAULT,
@@ -281,8 +284,8 @@ export default class App extends React.Component {
 
          // Pre-fetch data for new page and fill overflow buffer
          if (current_results_page >= swap_results_page && direction_up || current_results_page <= swap_results_page && direction_down && (current_results_page !== 0 && swap_results_page !== 0)) {
-            console.log('Pre-fetching data from API');
-            console.log('current page', current_results_page,'swap page', swap_results_page)
+            console.log('[MESSAGE] pre-fetching data from API');
+            // console.log('current page', current_results_page,'swap page', swap_results_page)
             // TODO: This is no longer being called asyncronously - handle case if pre-fetch failed
             // TODO: Add promise failure callback
             this.lineSearch(false, true, new_offset).then(() => {
@@ -309,7 +312,7 @@ export default class App extends React.Component {
 
         // Swap buffers if we've reached the end of the current buffer
         if (ne_current_offset) {
-            console.log('Swapping results with pre-fetched buffer');
+            console.log('[MESSAGE] swapping results with pre-fetched buffer');
             this.swapResultBuffers();
         }
 
@@ -342,17 +345,21 @@ export default class App extends React.Component {
         
         // Determine if new search is only white space
         const re_space = new RegExp('^ *$');
-        const valid_search = (re_space.test(this.state.projects))
+        const invalid_search = (re_space.test(this.state.projects))
                               && (re_space.test(this.state.characters))
                               && (re_space.test(this.state.episodes))
                               && (re_space.test(this.state.lines));
 
-        if (new_query && !valid_search) {
+        // TODO: Handle invalid searches in UI
+        if (invalid_search) return;
+        
+        if (new_query && !invalid_search) {
+            
             // Parse and seperate user options
             for (const i of user_input) {
                 const k = Object.keys(i)[0];
                 let delimiter = '';
-    
+                
                 
                 if (k === 'episode' || k === 'character') {
                     // Handle case where user uses | as delimiter
@@ -371,24 +378,44 @@ export default class App extends React.Component {
                     i['data'].push(n.trim().toLowerCase());
                 }
             }
-    
+            
             // Transform ranged episodes to a sequence of comma-seperated values
             // TODO: Constrain max range to prevent user from generating too many numbers
             eps_sequence = epRangesToSequences(list_episodes);
-            
+
             // Build the URL based on user inputs
             // TODO: Backwards offset for swap buffer query
             qry_href = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, 0, qry_page, qry_offset);
 
-             // Update state for current query parameters
-             // Clear current results
+            // Handle if current query parameters are the same as previous
+            // TODO: Display message in UI for identical query parameters
+            // console.log('current query', this.state.current_query, 'new query', qry_href);
+            list_projects.sort();
+            list_episodes.sort();
+            list_characters.sort();
+            list_lines.sort();
+
+            const identical_query = array_is_same(list_projects, this.state.current_query_parameters.projects)
+                                    && array_is_same(list_episodes, this.state.current_query_parameters.episodes)
+                                    && array_is_same(list_characters, this.state.current_query_parameters.characters)
+                                    && array_is_same(list_lines, this.state.current_query_parameters.lines)
+                                    && qry_page === this.state.current_query_parameters.page
+                                    && qry_offset === this.state.current_query_parameters.offset;
+
+            if (identical_query) {
+                console.log('[MESSAGE] current query parameters matches previous: skipping search');
+                return;
+            }
+            
+            // Update state for current query parameters
+            // Clear current results
             this.setState({
                  page: 0,
                  result: APP_RESULT_DEFAULT,
                  current_query: qry_href,
                  current_query_parameters: {
                     projects: list_projects,
-                    episodes: eps_sequence,
+                    episodes: list_episodes,
                     characters: list_characters,
                     lines: list_lines,
                     page: qry_page,
@@ -405,8 +432,8 @@ export default class App extends React.Component {
             // console.log('load state', this.state.result.data[API_RESULT_KEYS.RESULTS].length <= 0 && !prefetch);
             if (this.state.result.data[API_RESULT_KEYS.RESULTS].length <= 0 && !prefetch) this.setState({ awaiting_results: true });
 
-            if (!valid_search) console.log('Making call to API with href:', qry_href);
-            const qry_response = ((!valid_search)
+            if (!invalid_search) console.log('[MESSAGE] making call to API with href:', qry_href);
+            const qry_response = ((!invalid_search)
                 ? await api.get(qry_href)
                 : { status: 0 }
             );
@@ -448,6 +475,7 @@ export default class App extends React.Component {
     
     // Method for clearing search fields
     clearSearch(clear_results = true) {
+        // Clear UI input fields
         this.setState({
             projects: '',
             characters: '',
@@ -455,6 +483,7 @@ export default class App extends React.Component {
             lines: ''
         });
 
+        // Clear app search state
         if (clear_results) {
             this.setState({
                 page: 0,
@@ -463,6 +492,7 @@ export default class App extends React.Component {
                 result_overflow_page: 0,
                 result_offset: 0,
                 current_query: '',
+                current_query_parameters: APP_QUERYPARAMS_DEFAULT,
                 successful_results: false,
                 result_prefetch_1: APP_RESULT_DEFAULT,
                 awaiting_results: false
