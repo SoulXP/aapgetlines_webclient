@@ -3,7 +3,7 @@
 * @param {Int} start start of integer sequence
 * @param {Int} end end of integer sequence
 */
-export function generateSequence(start, end) {
+export function generate_sequence(start, end) {
     let s = start;
     let e = end;
     let sequence = [];
@@ -27,7 +27,7 @@ export function generateSequence(start, end) {
 * @param {String[]} ranges array of strings containing episode strings
 * @param {String} delimiter string to use as a delimiter for splitting strings in ranges
 */
-export function epRangesToSequences(ranges, delimiter = ':') {
+export function range_string_to_sequence(ranges, delimiter = ':') {
     let all_sequences = [];
     const re_range = new RegExp(`^\\d+${delimiter}\\d+$`, 'gi');
     const re_digits = new RegExp('^\\d+$');
@@ -36,7 +36,7 @@ export function epRangesToSequences(ranges, delimiter = ':') {
         let sequence = [];
         if (re_range.test(e)) {
             const start_end = e.split(delimiter);
-            const sequence = generateSequence(parseInt(start_end[0]), parseInt(start_end[1]));
+            const sequence = generate_sequence(parseInt(start_end[0]), parseInt(start_end[1]));
             all_sequences = all_sequences.concat(
                 sequence.filter((c) => { return c >= 0 })
             );

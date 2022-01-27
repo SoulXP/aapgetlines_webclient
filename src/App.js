@@ -2,17 +2,15 @@ import React, { useRef } from 'react';
 import './styles.css';
 import './App.css';
 import Searchbar from './components/searchbar/SearchBar.js';
-import { api, API_RESULT_KEYS, API_LOCAL_DEFAULTS } from './http/ApiClient.js';
+import { api, API_RESULT_KEYS, API_LOCAL_DEFAULTS, build_query_string } from './http/ApiClient.js';
 import Table from './components/resultstable/Table.js';
-import buildQueryString from './utils/QueryUrl.js';
-import { epRangesToSequences } from './components/searchbar/EpRange.js';
+import { range_string_to_sequence } from './components/searchbar/EpRange.js';
 import TablePagination from './components/resultstable/UsePagination';
 import OptionsButton from './components/buttons/OptionsButton.js'
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import LinearProgress from '@mui/material/LinearProgress';
 import Box from '@mui/material/Box';
 import { array_is_same } from './utils/Algorithm.js';
-
 
 // Styling theme globals
 const APP_COLOUR_PRIMARY_BLUE = "#4da4f6";
@@ -37,7 +35,6 @@ const APP_THEME = createTheme({
     }
 });
 
-
 // App class globals
 const APP_RESULT_DEFAULT = {
     query: '',
@@ -58,9 +55,9 @@ const APP_QUERYPARAMS_DEFAULT = {
     characters: [],
     episodes: [],
     lines: [],
+    limit: 0,
     page: 0,
-    offset: 0,
-    limit: 0
+    offset: 0
 };
 
 export default class App extends React.Component {
@@ -70,12 +67,14 @@ export default class App extends React.Component {
 
         // App stateful variables
         this.state = {
-            // Search variables
-            projects: '',
-            characters: '',
-            episodes: '',
-            lines: '',
+            // UI input fields
+            projects: [],
+            characters: [],
+            episodes: [],
+            lines: [],
             current_input_focus: 0,
+
+            // Parameters used for previous query
             current_query: '',
             successful_results: false,
             current_query_parameters: APP_QUERYPARAMS_DEFAULT,
@@ -245,6 +244,58 @@ export default class App extends React.Component {
         this.setState((s,p) => ({ [key]: value }));
     }
 
+// ------------------------------------------------------------------------------------------------------------------------------------------
+// START OF WIP IMPLEMENTATION FOR ROTATING PREFETCH BUFFER MODEL
+
+    async _offsetPage(offset = 0) {
+        // Function constants
+        const api_total_query = this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY];
+        const api_max_query = this.state.result.data[API_RESULT_KEYS.MAX_QUERY];
+        const api_results = this.state.result.data[API_RESULT_KEYS.RESULTS];
+        const api_current_page = this.state.result.data[API_RESULT_KEYS.PAGE];
+        const total_page_slices = Math.ceil(api_total_query / this.getPageRowDisplay());
+        const next_local_page_requested = Math.max(0, Math.min(this.state.page, this.state.page + offset));
+
+        // Left boundary case: Fill all three buffers in sequence page, page + 1, page + 2
+        // : Fill all three buffers with pages n ... n + 2 | n == 0
+        if (next_local_page_requested === 0) this._dispatchSearch([], true);
+        
+        // Right boundary case: Fill all three buffers in sequence total_pages - 2, total_pages - 1, total_pages
+        // : Fill all three buffers with page B_t - 2 .. B_t 
+
+        // Mid-point boundary case: swap buffers according to direction and fill 1 buffer (next or previous) with previous_page - 1 or next_page + 1, depending on direction
+        // offset == 1  | B_1' = B_2;            B_2' = B_3;    B_3' = (NEW QUERY);
+        // offset == -1 | B_1' = (NEW_QUERY);    B_2' = B_1;    B_3' = B_2;
+        // where
+        //      B_1       == current previous buffer
+        //      B_2       == current current buffer
+        //      B_3       == current next buffer
+        //      B_1'      == mutated previous buffer
+        //      B_2'      == mutated current buffer
+        //      B_3'      == mutated next buffer
+        //      p         == current page
+        //      next      == p + |offset|
+        //      previous  == p - |offset|
+        //      next'     == next + |offset|
+        //      previous' == previous - |offset|
+    }
+
+    _dispatchSearch(parameters = [], with_current_qry = false) {
+        // Fetch existing query parameters
+        const qry_parameters = this.state.current_query_parameters;
+        
+        // Build query strings
+        const qry_urls = parameters.map((c) => {
+            const { projects, episodes, characters, lines, limit, page, offset } = c;
+            return build_query_string(projects, episodes, characters, lines, limit, page, offset);
+        });
+
+        const
+    }
+
+// END OF WIP IMPLEMENTATION FOR ROTATING PREFETCH BUFFER MODEL
+// ------------------------------------------------------------------------------------------------------------------------------------------
+
     async offsetPage(offset = 0) {
         // Determine new page number according to input offset
         const next_local_page_requested = (this.state.page + offset <= 0) ? 0 : this.state.page + offset;
@@ -381,11 +432,11 @@ export default class App extends React.Component {
             
             // Transform ranged episodes to a sequence of comma-seperated values
             // TODO: Constrain max range to prevent user from generating too many numbers
-            eps_sequence = epRangesToSequences(list_episodes);
+            eps_sequence = range_string_to_sequence(list_episodes);
 
             // Build the URL based on user inputs
             // TODO: Backwards offset for swap buffer query
-            qry_href = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, 0, qry_page, qry_offset);
+            qry_href = build_query_string(list_projects, eps_sequence, list_characters, list_lines, 0, qry_page, qry_offset);
 
             // Handle if current query parameters are the same as previous
             // TODO: Display message in UI for identical query parameters
@@ -423,7 +474,7 @@ export default class App extends React.Component {
                  }
             });
         } else {
-            qry_href = buildQueryString(list_projects, eps_sequence, list_characters, list_lines, 0, qry_page, qry_offset);
+            qry_href = build_query_string(list_projects, eps_sequence, list_characters, list_lines, 0, qry_page, qry_offset);
         }
         
         // Make query to the API
