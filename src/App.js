@@ -10,14 +10,62 @@ import OptionsButton from './components/buttons/OptionsButton.js'
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import LinearProgress from '@mui/material/LinearProgress';
 import Box from '@mui/material/Box';
-import { array_is_same } from './utils/Algorithm.js';
+import { array_is_same, fast_hash_53 } from './utils/Algorithm.js';
+import { SignalCellularConnectedNoInternet1Bar } from '@mui/icons-material';
+
+// App class globals
+const APP_DATA_PROVIDER         = api;
+const APP_PREFETCHBUFFER_MAX    = 1;
+const APP_HASH_SEED             = 69420;
+
+const APP_FLAG_SUCCESS = (1 << 0);
+const APP_FLAG_ERROR   = (1 << 1);
+const APP_FLAG_FAILURE = (1 << 2);
+const APP_ERRORS = {
+    [APP_FLAG_SUCCESS]: {
+        msg: 'success'
+    },
+
+    [APP_FLAG_ERROR]: {
+        msg: 'error'
+    },
+
+    [APP_FLAG_FAILURE]: {
+        msg: 'failure'
+    }
+};
+
+const APP_RESULT_DEFAULT = {
+    query: '',
+    query_params: [],
+    data: {
+        [API_RESULT_KEYS.TOTAL_QUERY]:   0,
+        [API_RESULT_KEYS.TOTAL_RESULTS]: 0,
+        [API_RESULT_KEYS.MAX_QUERY]:     API_LOCAL_DEFAULTS.MAX_QUERY,
+        [API_RESULT_KEYS.PAGE]:          0,
+        [API_RESULT_KEYS.OFFSET]:        0,
+        [API_RESULT_KEYS.LIMIT]:         0,
+        [API_RESULT_KEYS.RESULTS]:       []
+    },
+    hash: () => { return fast_hash_53('', APP_HASH_SEED) }
+};
+
+const APP_QUERYPARAMS_DEFAULT = {
+    projects: [],
+    characters: [],
+    episodes: [],
+    lines: [],
+    limit: 0,
+    page: 0,
+    offset: 0
+};
 
 // Styling theme globals
-const APP_COLOUR_PRIMARY_BLUE = "#4da4f6";
-const APP_COLOUR_PRIMARY_GREEN = "#007e00";
-const APP_COLOUR_PRIMARY_RED = "#ff572d";
-const APP_COLOUR_PRIMARY_WHITE = "#EEEEEE";
-const APP_COLOUR_SECOND_WHITE = "#AAAAAA";
+const APP_COLOUR_PRIMARY_BLUE = '#4da4f6';
+const APP_COLOUR_PRIMARY_GREEN = '#007e00';
+const APP_COLOUR_PRIMARY_RED = '#ff572d';
+const APP_COLOUR_PRIMARY_WHITE = '#EEEEEE';
+const APP_COLOUR_SECOND_WHITE = '#AAAAAA';
 
 const APP_THEME = createTheme({
     components: {
@@ -34,31 +82,6 @@ const APP_THEME = createTheme({
         }
     }
 });
-
-// App class globals
-const APP_RESULT_DEFAULT = {
-    query: '',
-    query_params: [],
-    data: {
-        [API_RESULT_KEYS.TOTAL_QUERY]:   0,
-        [API_RESULT_KEYS.TOTAL_RESULTS]: 0,
-        [API_RESULT_KEYS.MAX_QUERY]:     API_LOCAL_DEFAULTS.MAX_QUERY,
-        [API_RESULT_KEYS.PAGE]:          0,
-        [API_RESULT_KEYS.OFFSET]:        0,
-        [API_RESULT_KEYS.LIMIT]:         0,
-        [API_RESULT_KEYS.RESULTS]:       []
-    }
-};
-
-const APP_QUERYPARAMS_DEFAULT = {
-    projects: [],
-    characters: [],
-    episodes: [],
-    lines: [],
-    limit: 0,
-    page: 0,
-    offset: 0
-};
 
 export default class App extends React.Component {
     constructor(props) {
@@ -84,6 +107,11 @@ export default class App extends React.Component {
             result_overflow: [],
             result_overflow_page: 0,
             result_offset: 0,
+
+            // State for WIP Rotating Prefetch Buffer Model
+            _display_buffer_index = 0,
+            _data_buffers: [],
+            _overflow_buffer: [],
             
             // For prefetching data
             result_prefetch_1: APP_RESULT_DEFAULT,
@@ -105,7 +133,7 @@ export default class App extends React.Component {
         // Timer for various app level timing needs
         this.timers = 0;
 
-        // Styling constants
+        // Styling defaults
         this.table_row_size_px = 30;
 
         // References to DOM components
@@ -247,50 +275,90 @@ export default class App extends React.Component {
 // ------------------------------------------------------------------------------------------------------------------------------------------
 // START OF WIP IMPLEMENTATION FOR ROTATING PREFETCH BUFFER MODEL
 
-    async _offsetPage(offset = 0) {
+    _isFlagSuccess(flag) {
+        return flag === APP_FLAG_SUCCESS;
+    }
+
+    async _getPageData(offset = 0) {
         // Function constants
         const api_total_query = this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY];
         const api_max_query = this.state.result.data[API_RESULT_KEYS.MAX_QUERY];
         const api_results = this.state.result.data[API_RESULT_KEYS.RESULTS];
         const api_current_page = this.state.result.data[API_RESULT_KEYS.PAGE];
         const total_page_slices = Math.ceil(api_total_query / this.getPageRowDisplay());
+        const current_page_display = this.getPageRowDisplay();
         const next_local_page_requested = Math.max(0, Math.min(this.state.page, this.state.page + offset));
 
-        // Left boundary case: Fill all three buffers in sequence page, page + 1, page + 2
-        // : Fill all three buffers with pages n ... n + 2 | n == 0
-        if (next_local_page_requested === 0) this._dispatchSearch([], true);
-        
-        // Right boundary case: Fill all three buffers in sequence total_pages - 2, total_pages - 1, total_pages
-        // : Fill all three buffers with page B_t - 2 .. B_t 
+        // Make request for page
+        const query_success = this._dispatchQuery({
+            project: this.state.current_query_parameters.projects,
+            episodes: this.state.current_query_parameters.episodes,
+            characters: this.state.current_query_parameters.characters,
+            lines: this.state.current_query_parameters.lines,
+            limit: this.state.current_query_parameters.limit,
+            page: next_local_page_requested,
+            offset: this.state.current_query_parameters.offset
+        });
 
-        // Mid-point boundary case: swap buffers according to direction and fill 1 buffer (next or previous) with previous_page - 1 or next_page + 1, depending on direction
-        // offset == 1  | B_1' = B_2;            B_2' = B_3;    B_3' = (NEW QUERY);
-        // offset == -1 | B_1' = (NEW_QUERY);    B_2' = B_1;    B_3' = B_2;
-        // where
-        //      B_1       == current previous buffer
-        //      B_2       == current current buffer
-        //      B_3       == current next buffer
-        //      B_1'      == mutated previous buffer
-        //      B_2'      == mutated current buffer
-        //      B_3'      == mutated next buffer
-        //      p         == current page
-        //      next      == p + |offset|
-        //      previous  == p - |offset|
-        //      next'     == next + |offset|
-        //      previous' == previous - |offset|
+        // Handle results of query
+        if (!this._isFlagSuccess(query_success)) {
+            return [];
+        }
+
+        // Slice up results for returning
+        const display_buffer = this._getDisplayBuffer();
+        const slice_start = (next_local_page_requested * current_page_display) - (api_current_page * api_max_query) + slice_offset;
+        const slice_end = Math.min(results.length, slice_start + current_page_display);
+
+        return display_buffer.slice(slice_start, slice_end);
     }
 
-    _dispatchSearch(parameters = [], with_current_qry = false) {
+    _getDisplayBuffer() {
+        return this.state._data_buffers[this.state._display_buffer_index].contents.data[API_RESULT_KEYS.RESULTS];
+    }
+
+    _rotateBuffers(direction = 0) {
+        if (direction === 0) {
+            console.log('[WARNING] cannot rotate buffers with a direction of 0');
+            return APP_FLAG_ERROR;
+        }
+
+        return APP_FLAG_SUCCESS;
+    }
+
+    _dispatchQuery(parameters) {
+        // TODO: Handle empty parameters
+
         // Fetch existing query parameters
         const qry_parameters = this.state.current_query_parameters;
         
-        // Build query strings
-        const qry_urls = parameters.map((c) => {
-            const { projects, episodes, characters, lines, limit, page, offset } = c;
-            return build_query_string(projects, episodes, characters, lines, limit, page, offset);
-        });
+        // Verify that data for requested parameters are not already available in data buffers
+        let buffer_index = -1;
+        const parameters_hash = this._hashParameters(parameters);
+        for (let i = 0; i < this.state._data_buffers.length; i++) {
+            if (this.state._data_buffers[i].hash === parameters_hash) buffer_index = i;
+        }
 
-        const
+        if (buffer_index === -1) {
+            // TODO: Fill all three buffers
+        } else if () {
+
+        }
+
+        // Build query string
+        const { projects, episodes, characters, lines, limit, page, offset } = parameters;
+
+        // Check if buffers
+        
+        return APP_FLAG_SUCCESS;
+    }
+
+    _queryDataProvider(qry = '') {
+
+    }
+
+    _getTotalAvailableBuffers() {
+        return (APP_PREFETCHBUFFER_MAX * 2) + 1;
     }
 
 // END OF WIP IMPLEMENTATION FOR ROTATING PREFETCH BUFFER MODEL

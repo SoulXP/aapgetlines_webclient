@@ -2,6 +2,7 @@
   "name": "aapgetlines_webclient",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "dependencies": {
     "@emotion/react": "^11.7.0",
     "@emotion/styled": "^11.6.0",
@@ -18,10 +19,15 @@
     "react-scripts": "^3.4.4",
     "web-vitals": "^1.1.2"
   },
+  "devDependencies": {
+    "chai": "^4.3.6",
+    "mocha": "*"
+  },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test",
+    "test-app": "react-scripts test",
+    "test-utils": "mocha ./tests",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
