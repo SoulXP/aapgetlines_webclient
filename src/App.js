@@ -10,8 +10,7 @@ import OptionsButton from './components/buttons/OptionsButton.js'
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import LinearProgress from '@mui/material/LinearProgress';
 import Box from '@mui/material/Box';
-import { array_is_same, fast_hash_53 } from './utils/Algorithm.js';
-import { SignalCellularConnectedNoInternet1Bar } from '@mui/icons-material';
+import { array_is_same, fast_hash_53, primitive_to_string } from './utils/Algorithm.js';
 
 // App class globals
 const APP_DATA_PROVIDER         = api;
@@ -91,10 +90,10 @@ export default class App extends React.Component {
         // App stateful variables
         this.state = {
             // UI input fields
-            projects: [],
-            characters: [],
-            episodes: [],
-            lines: [],
+            projects: '',
+            characters: '',
+            episodes: '',
+            lines: '',
             current_input_focus: 0,
 
             // Parameters used for previous query
@@ -109,7 +108,7 @@ export default class App extends React.Component {
             result_offset: 0,
 
             // State for WIP Rotating Prefetch Buffer Model
-            _display_buffer_index = 0,
+            _display_buffer_index: 0,
             _data_buffers: [],
             _overflow_buffer: [],
             
@@ -307,8 +306,9 @@ export default class App extends React.Component {
 
         // Slice up results for returning
         const display_buffer = this._getDisplayBuffer();
+        const slice_offset = 0;
         const slice_start = (next_local_page_requested * current_page_display) - (api_current_page * api_max_query) + slice_offset;
-        const slice_end = Math.min(results.length, slice_start + current_page_display);
+        const slice_end = Math.min(display_buffer.length, slice_start + current_page_display);
 
         return display_buffer.slice(slice_start, slice_end);
     }
@@ -326,6 +326,10 @@ export default class App extends React.Component {
         return APP_FLAG_SUCCESS;
     }
 
+    _hashParameters(p) {
+        return fast_hash_53(primitive_to_string(p), APP_HASH_SEED);
+    }
+
     _dispatchQuery(parameters) {
         // TODO: Handle empty parameters
 
@@ -337,12 +341,6 @@ export default class App extends React.Component {
         const parameters_hash = this._hashParameters(parameters);
         for (let i = 0; i < this.state._data_buffers.length; i++) {
             if (this.state._data_buffers[i].hash === parameters_hash) buffer_index = i;
-        }
-
-        if (buffer_index === -1) {
-            // TODO: Fill all three buffers
-        } else if () {
-
         }
 
         // Build query string

@@ -4,21 +4,22 @@ import { fast_hash_53, primitive_to_string, get_type } from '../src/utils/Algori
 // Fast Hash 53 Suite
 describe('Fast Hash 53', () => {
     const iterations = 10000;
+    const seed = 333;
     const hash_string = 'hello world!';
-    const expected = fast_hash_53(hash_string);
+    const expected = fast_hash_53(hash_string, seed);
 
     it(`${iterations} passes for constant value: '${hash_string}'`, () => {
         for (let i = 0; i < iterations; i++) {
-            expect(fast_hash_53(hash_string))
+            expect(fast_hash_53(hash_string, seed))
             .toBe(expected);
         }
     });
 
     it(`${iterations} passes for simple primitive type`, () => {
         const primitive = primitive_to_string('hello');
-        const primitive_expected = fast_hash_53(primitive);
+        const primitive_expected = fast_hash_53(primitive, seed);
         for (let i = 0; i < iterations; i++) {
-            expect(fast_hash_53(primitive))
+            expect(fast_hash_53(primitive, seed))
             .toBe(primitive_expected);
         }
     });
@@ -33,9 +34,9 @@ describe('Fast Hash 53', () => {
                 e: {}
             }
         );
-        const primitive_expected = fast_hash_53(primitive);
+        const primitive_expected = fast_hash_53(primitive, seed);
         for (let i = 0; i < iterations; i++) {
-            expect(fast_hash_53(primitive))
+            expect(fast_hash_53(primitive, seed))
             .toBe(primitive_expected);
         }
     });
@@ -50,9 +51,9 @@ describe('Fast Hash 53', () => {
                 e: { a: 0, b: 0n, c: 'c', d: {} }
             }
         );
-        const primitive_expected = fast_hash_53(primitive);
+        const primitive_expected = fast_hash_53(primitive, seed);
         for (let i = 0; i < iterations; i++) {
-            expect(fast_hash_53(primitive))
+            expect(fast_hash_53(primitive, seed))
             .toBe(primitive_expected);
         }
     });
@@ -122,7 +123,7 @@ describe('Primitive to String Conversion', () => {
         { msg: '2D Array Conversion',                  expected: '[0,0n,\'\',\'\'hello world\'\',[0,0n,\'\',\'\'hello world\'\']]', param1: [0, 0n, '', '\'hello world\'', [0, 0n, '', '\'hello world\'']] },
         { msg: 'Array with Nested Objects Conversion', expected: '[0,0n,\'\',\'\'hello world\'\',{a:0,b:0n,c:\'\',d:\'\'hello world\'\',e:[0,0n,\'\',\'\'hello world\'\']}]', param1: [0, 0n, '', '\'hello world\'', { a: 0, b: 0n, c: '', d: '\'hello world\'', e: [0, 0n, '', '\'hello world\''] }] },
         { msg: 'Empty Object Conversion',              expected: '{}', param1: {} },
-        { msg: 'Nested Object Conversion',             expected: '{a:0,b:0n,c:\'\',d:\'\'hello world\'\',e:[0,0n,\'\',\'\'hello world\'\']}', param1: { a: 0, b: 0n, c: '', d: '\'hello world\'', e: [0, 0n, '', '\'hello world\''] } },
+        { msg: 'Nested Object Conversion',             expected: '{a:0,b:0n,c:\'\',d:\'\'hello world\'\',e:{a:0,b:0n,c:\'c\',d:\'\'hello world\'\',e:{a:{}}}}', param1: { a: 0, b: 0n, c: '', d: '\'hello world\'', e: {a: 0, b: 0n, c: 'c', d: '\'hello world\'', e: {a :{}}} } },
     ];
 
     for (const t of tests) {

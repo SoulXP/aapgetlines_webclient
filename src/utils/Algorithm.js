@@ -51,17 +51,13 @@ export function primitive_to_string(p) {
         case 'object':
             const keys = Object.keys(p);
             i = 0;
-            if (keys.length > 0) {
-                str += '{'
-                for (const k of keys) {
-                    str += `${k}:${primitive_to_string(p[k])}`;
-                    if (i < keys.length - 1) str += ',';
-                    i++;
-                }
-                str += '}'
-            } else {
-                str += '{}'
+            str += '{'
+            for (const k of keys) {
+                str += `${k}:${primitive_to_string(p[k])}`;
+                if (i < keys.length - 1) str += ',';
+                i++;
             }
+            str += '}'
             break;
 
         // TODO: Handle these types
