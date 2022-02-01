@@ -4,8 +4,6 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@emotion/react": "^11.7.0",
-    "@emotion/styled": "^11.6.0",
     "@mui/icons-material": "^5.2.1",
     "@mui/lab": "^5.0.0-alpha.64",
     "@mui/material": "^5.2.2",
@@ -19,15 +17,11 @@
     "react-scripts": "^3.4.4",
     "web-vitals": "^1.1.2"
   },
-  "devDependencies": {
-    "chai": "^4.3.6",
-    "mocha": "*"
-  },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test-app": "react-scripts test",
-    "test-utils": "mocha ./tests",
+    "test-utils": "jest ./tests",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -47,5 +41,14 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@babel/core": "^7.16.12",
+    "jest": "^27.4.7"
+  },
+  "jest": {
+    "transform": {
+      "^.+\\.[t|j]sx?$": "babel-jest"
+    }
   }
 }

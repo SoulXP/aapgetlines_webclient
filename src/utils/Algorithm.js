@@ -1,3 +1,4 @@
+// TODO: Tests
 export function array_is_same(a, b) {
     return Array.isArray(a)
            && Array.isArray(b)
@@ -5,48 +6,79 @@ export function array_is_same(a, b) {
            && a.every((v, i) => v === b[i]);
 }
 
-function get_type(obj, show_full_class) {
+export function get_type(obj, show_full_class = false) {
+    const deep_type = Object.prototype.toString.call(obj).toLowerCase();
+    const object_deep_type = Object.prototype.toString.call({}).toLowerCase();
+    const re_types = /(array|bigint|date|error|function|generatorfunction|regexp|symbol|number|string|null|undefined)/;
 
-    // get toPrototypeString() of obj (handles all types)
-    if (show_full_class && typeof obj === 'object') {
-        return Object.prototype.toString.call(obj);
+    if (show_full_class) {
+        if (deep_type.match(re_types)) return deep_type;
+        else return object_deep_type;
+    } else {
+        if (deep_type.match(re_types)) return deep_type.slice(8,-1);
+        else return object_deep_type.slice(8,-1);
     }
-    if (obj == null) { return (obj + '').toLowerCase(); }
-
-    const deepType = Object.prototype.toString.call(obj).slice(8,-1).toLowerCase();
-    if (deepType === 'generatorfunction') { return 'function' }
-
-    // Prevent overspecificity (for example, [object HTMLDivElement], etc).
-    return deepType.match(/^(array|bigint|date|error|function|generator|regexp|symbol)$/)
-        ? deepType
-        : (typeof obj === 'object' || typeof obj === 'function')
-            ? 'object'
-            : typeof obj;
-  }
+}
 
 export function primitive_to_string(p) {
     let str = '';
+    let i = 0;
 
     // Number type
-    switch (get_type(p, true)) {
-        case 'array': break;
-        case 'bigint': break;
-        case 'date': break;
-        case 'error': break;
-        case 'function': break;
-        case 'generator': break;
-        case 'null': break;
-        case 'number': break;
-        case 'object': break;
-        case 'regexp': break;
-        case 'symbol': break;
-        case 'undefined': break
+    switch (get_type(p)) {    
+        case 'bigint':
+            str += `${p.toString()}n`;
+            break;
+        case 'number':
+            str += p.toString();
+            break;
+
+        case 'string':
+            str += `'${p.toString()}'`;
+            break;
+
+        case 'array':
+            str += '[';
+            i = 0;
+            for (const e of p) {
+                str += primitive_to_string(e);
+                if (i < p.length - 1) str += ',';
+                i++;
+            }
+            str += ']';
+            break;
+
+        case 'object':
+            const keys = Object.keys(p);
+            i = 0;
+            if (keys.length > 0) {
+                str += '{'
+                for (const k of keys) {
+                    str += `${k}:${primitive_to_string(p[k])}`;
+                    if (i < keys.length - 1) str += ',';
+                    i++;
+                }
+                str += '}'
+            } else {
+                str += '{}'
+            }
+            break;
+
+        // TODO: Handle these types
+        case 'date':              return 'date';
+        case 'function':          return 'function';
+        case 'generatorfunction': return 'generatorfunction';
+        case 'symbol':            return 'symbol';
+        case 'error':             return 'error';
+        case 'regexp':            return 'regexp';
+        case 'null':              return 'null';
+        case 'undefined':         return 'undefined';
     }
 
     return str;
 }
 
-// https://stackoverflow.com/questions/7616461/generate-a-hash-from-string-in-javascript
+// SOURCE: https://stackoverflow.com/questions/7616461/generate-a-hash-from-string-in-javascript
 export function fast_hash_53(str, seed = 0) {
     let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
     for (let i = 0, ch; i < str.length; i++) {
