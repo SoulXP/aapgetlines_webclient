@@ -34,21 +34,6 @@ const APP_ERRORS = {
     }
 };
 
-const APP_RESULT_DEFAULT = {
-    query: '',
-    query_params: [],
-    data: {
-        [API_RESULT_KEYS.TOTAL_QUERY]:   0,
-        [API_RESULT_KEYS.TOTAL_RESULTS]: 0,
-        [API_RESULT_KEYS.MAX_QUERY]:     API_LOCAL_DEFAULTS.MAX_QUERY,
-        [API_RESULT_KEYS.PAGE]:          0,
-        [API_RESULT_KEYS.OFFSET]:        0,
-        [API_RESULT_KEYS.LIMIT]:         0,
-        [API_RESULT_KEYS.RESULTS]:       []
-    },
-    hash: () => { return fast_hash_53(primitive_to_string(APP_QUERYPARAMS_DEFAULT), APP_HASH_SEED) }
-};
-
 const APP_QUERYPARAMS_DEFAULT = {
     projects: [],
     characters: [],
@@ -57,6 +42,20 @@ const APP_QUERYPARAMS_DEFAULT = {
     limit: 0,
     page: 0,
     offset: 0
+};
+
+const APP_RESULT_DEFAULT = {
+    query: '',
+    query_params: APP_QUERYPARAMS_DEFAULT,
+    data: {
+        [API_RESULT_KEYS.TOTAL_QUERY]:   0,
+        [API_RESULT_KEYS.TOTAL_RESULTS]: 0,
+        [API_RESULT_KEYS.MAX_QUERY]:     API_LOCAL_DEFAULTS.MAX_QUERY,
+        [API_RESULT_KEYS.PAGE]:          0,
+        [API_RESULT_KEYS.OFFSET]:        0,
+        [API_RESULT_KEYS.LIMIT]:         0,
+        [API_RESULT_KEYS.RESULTS]:       []
+    }
 };
 
 // Styling theme globals
@@ -278,7 +277,106 @@ export default class App extends React.Component {
         return flag === APP_FLAG_SUCCESS;
     }
 
-    async _getPageData(offset = 0) {
+    _consumeUserInput() {
+        // Storage for parsed user input
+        let list_episodes = [];
+        let list_projects = [];
+        let list_characters = [];
+        let list_lines = [];
+        let eps_sequence = [];
+        
+        // Collect user input from form fields
+        const user_input = [
+            {project: this.state.projects,     data: list_projects   },
+            {episode: this.state.episodes,     data: list_episodes   },
+            {character: this.state.characters, data: list_characters },
+            {line: this.state.lines,           data: list_lines      }
+        ]
+
+        // Determine if new search is only white space
+        const re_space = new RegExp('^ *$');
+        const invalid_search = (re_space.test(this.state.projects))
+                            && (re_space.test(this.state.characters))
+                            && (re_space.test(this.state.episodes))
+                            && (re_space.test(this.state.lines));
+
+        // TODO: Handle invalid searches in UI
+        if (invalid_search) return APP_FLAG_FAILURE;
+            
+        // Parse and seperate user options
+        for (const i of user_input) {
+            const k = Object.keys(i)[0];
+            let delimiter = '';
+            
+            if (k === 'episode' || k === 'character') {
+                // Handle case where user uses | as delimiter
+                // TODO: Use better procedure for testing which delimiter is being used
+                const re_delimiter = new RegExp('\\|');
+                
+                if (re_delimiter.test(i[k])) delimiter = '|';
+                else delimiter = ',';
+                
+            } else if (k === 'project' || k === 'line') {
+                delimiter = '|';
+            }
+            
+            const dirty_data = i[k].split(delimiter);
+            for (const n of dirty_data) {
+                i['data'].push(n.trim().toLowerCase());
+            }
+        }
+        
+        // Transform ranged episodes to a sequence of comma-seperated values
+        // TODO: Constrain max range to prevent user from generating too many numbers
+        eps_sequence = range_string_to_sequence(list_episodes);
+
+        // Handle if current query parameters are the same as previous
+        // TODO: Display message in UI for identical query parameters
+        // console.log('current query', this.state.current_query, 'new query', qry_href);
+        list_projects.sort();
+        list_episodes.sort();
+        list_characters.sort();
+        list_lines.sort();
+
+        const identical_query = array_is_same(list_projects, this.state.current_query_parameters.projects)
+                                && array_is_same(list_episodes, this.state.current_query_parameters.episodes)
+                                && array_is_same(list_characters, this.state.current_query_parameters.characters)
+                                && array_is_same(list_lines, this.state.current_query_parameters.lines)
+                                && this.state.page === this.state.current_query_parameters.page
+                                && this.state.offset === this.state.current_query_parameters.offset;
+
+        if (identical_query) {
+            console.log('[MESSAGE] current query parameters matches previous: skipping search');
+            return APP_FLAG_SUCCESS;
+        }
+        
+        // Update state for current query parameters
+        // Clear current results
+        this.setState({
+            page: 0,
+            result: APP_RESULT_DEFAULT,
+            current_query_parameters: {
+                projects: list_projects,
+                episodes: list_episodes,
+                characters: list_characters,
+                lines: list_lines,
+                limit: 0,
+                page: 0,
+                offset: 0
+            }
+        });
+
+        return APP_FLAG_SUCCESS;
+    }
+
+    _offsetPage(offset = 0) {
+        const next_page = this.state.page + offset;
+        const api_total_query = this._getDisplayBufferTotalRemoteResults();
+        const total_page_slices = Math.ceil(api_total_query / this.getPageRowDisplay());
+        this.setState({ page: Math.max(0, Math.min(next_page, total_page_slices)) });
+    }
+
+    _getPageData(offset = 0) {
         // Function constants
         const api_total_query = this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY];
         const api_max_query = this.state.result.data[API_RESULT_KEYS.MAX_QUERY];
@@ -286,35 +384,21 @@ export default class App extends React.Component {
         const api_current_page = this.state.result.data[API_RESULT_KEYS.PAGE];
         const total_page_slices = Math.ceil(api_total_query / this.getPageRowDisplay());
         const current_page_display = this.getPageRowDisplay();
-        const next_local_page_requested = Math.max(0, Math.min(this.state.page, this.state.page + offset));
+        const current_local_page = this.state.page;
 
-        // Make request for page
-        const query_success = this._dispatchQuery({
-            project: this.state.current_query_parameters.projects,
-            episodes: this.state.current_query_parameters.episodes,
-            characters: this.state.current_query_parameters.characters,
-            lines: this.state.current_query_parameters.lines,
-            limit: this.state.current_query_parameters.limit,
-            page: next_local_page_requested,
-            offset: this.state.current_query_parameters.offset
-        });
-
-        // Handle results of query
-        if (!this._isFlagSuccess(query_success)) {
-            return [];
-        }
+        if (this._getTotalStoredBuffers() === 0) return [];
 
         // Slice up results for returning
         const display_buffer = this._getDisplayBuffer();
         const slice_offset = 0;
-        const slice_start = (next_local_page_requested * current_page_display) - (api_current_page * api_max_query) + slice_offset;
+        const slice_start = (current_local_page * current_page_display) - (api_current_page * api_max_query) + slice_offset;
         const slice_end = Math.min(display_buffer.length, slice_start + current_page_display);
 
         return display_buffer.slice(slice_start, slice_end);
     }
 
     _getDisplayBuffer() {
-        return this.state._data_buffers[this.state._display_buffer_index].contents.data[API_RESULT_KEYS.RESULTS];
+        return this.state._data_buffers[this.state._display_buffer_index].data[API_RESULT_KEYS.RESULTS];
     }
 
     _rotateBuffers(direction = 0) {
@@ -330,7 +414,7 @@ export default class App extends React.Component {
         return fast_hash_53(primitive_to_string(p), APP_HASH_SEED);
     }
 
-    _dispatchQuery(parameters) {
+    async _dispatchQuery(parameters) {
         // TODO: Handle empty parameters
 
         // Fetch existing query parameters
@@ -359,7 +443,7 @@ export default class App extends React.Component {
                 qry_urls.push(build_query_string(projects, episodes, characters, lines, limit, page + i, offset))
             }
 
-            if (!this._isFlagSuccess(this._fillBuffersWithQueries(qry_urls))) {
+            if (!this._isFlagSuccess(await this._fillBuffersWithQueries(qry_urls, parameters))) {
                 console.log('[MESSAGE] could not fill buffers with provided parameters');
                 return APP_FLAG_FAILURE;
             }
@@ -368,7 +452,7 @@ export default class App extends React.Component {
         return APP_FLAG_SUCCESS;
     }
 
-    _fillBuffersWithQueries(urls = []) {
+    async _fillBuffersWithQueries(urls = [], parameters = APP_QUERYPARAMS_DEFAULT) {
         if (urls.length === 0) {
             console.log('[WARNING] no URLs were provided to query API');
             return APP_FLAG_FAILURE;
@@ -376,14 +460,23 @@ export default class App extends React.Component {
         
         let results = [];
         for (const u of urls) {
-            const qry_result = this._queryDataProvider(u);
-            if (this._isFlagSuccess(results.flag)) results.push(qry_result.result);
-        }
+            const qry_result = await this._queryDataProvider(u);
+            
+            if (this._isFlagSuccess(qry_result.flag)) {
+                const result = {
+                    query: u,
+                    query_params: parameters,
+                    hash: () => { return fast_hash_53(primitive_to_string(parameters), APP_HASH_SEED) },
+                    data: qry_result.result
+                }
 
-        // Update app buffers with state
+                results.push(result);
+            }
+        }
+        
         if (results.length > 0) this.setState({ _data_buffers: [...results] });
         else console.log('[MESSAGE] query to API had no results');
-        
+
         return APP_FLAG_SUCCESS;
     }
 
@@ -394,19 +487,21 @@ export default class App extends React.Component {
         }
 
         // TODO: Verify format of query string before calling data provider
+        try {
+            console.log('[MESSAGE] making call to API with href:', qry);
+            const qry_response = await APP_DATA_PROVIDER.get(qry);
 
-        console.log('[MESSAGE] making call to API with href:', qry);
-        const qry_response = ((!invalid_search)
-            ? await APP_DATA_PROVIDER.get(qry)
-            : { status: 0 }
-        );
+            const qry_data = ((qry_response.status === 200)
+                ? qry_response.data
+                : APP_RESULT_DEFAULT.data
+            );
 
-        const qry_data = ((qry_response.status === 200)
-            ? qry_response.data
-            : APP_RESULT_DEFAULT.data
-        );
+            return { flag: APP_FLAG_SUCCESS, result: qry_data };
+        } catch (e) {
+            console.log(`[ERROR] query to API failed: ${e}`);
+        }
 
-        return { flag: APP_FLAG_SUCCESS, result: qry_data };
+        return { flag: APP_FLAG_FAILURE, result: APP_RESULT_DEFAULT };
     }
 
     _getTotalAllowedBuffers() {
@@ -777,19 +872,23 @@ export default class App extends React.Component {
 
             // Make a line search on Ctrl/Cmd + Enter
             if (e.key === 'Enter' && modifier_key) {
-                await this.lineSearch(true);
+                // await this.lineSearch(true);
+                this._consumeUserInput();
+                this._dispatchQuery(this.state.current_query_parameters);
             }
             
             // Change results to previous page on Ctrl/Cmd + Left
             if (e.key === 'ArrowLeft' && modifier_key) {
                 e.preventDefault();
-                this.offsetPage(-1);
+                // this.offsetPage(-1);
+                this._offsetPage(-1);
             }
             
             // Change results to next page on Ctrl/Cmd + Right
             if (e.key === 'ArrowRight' && modifier_key) {
                 e.preventDefault();
-                this.offsetPage(1);
+                // this.offsetPage(1);
+                this._offsetPage(1);
             }
             
             // Clear search fields on 1x Escape
@@ -819,7 +918,6 @@ export default class App extends React.Component {
             }
             
             // Clear clear search results on 2x Escape
-            // ANUPAMAA
             if (e.key === 'Escape' && this.state.btn_last_pressed === 'Escape' && !this.state.key_timed_out)
             {
                 this.clearSearch(true);
@@ -931,11 +1029,12 @@ export default class App extends React.Component {
                 <h1 ref={this.appHeader} className='header'>AAP Lore</h1>
                 <Searchbar
                     updateFieldCallbacks={{
-                            updateProjects:   (ref) => { this.updateFieldState('projects', ref);            },
-                            updateEpisodes:   (ref) => { this.updateFieldState('episodes', ref);            },
-                            updateCharacters: (ref) => { this.updateFieldState('characters', ref);          },
-                            updateLines:      (ref) => { this.updateFieldState('lines', ref);               },
-                            updateInputFocus: (ref) => { this.updateFieldState('current_input_focus', ref); },
+                            updateProjects:    (v) => { this.updateFieldState('projects', v);             },
+                            updateEpisodes:    (v) => { this.updateFieldState('episodes', v);             },
+                            updateCharacters:  (v) => { this.updateFieldState('characters', v);           },
+                            updateLines:       (v) => { this.updateFieldState('lines', v);                },
+                            updateQueryParams: (v) => { this.updateFieldState('current_query_params', v); },
+                            updateInputFocus:  (v) => { this.updateFieldState('current_input_focus', v);  },
                         }
                     }
                     setRefCallbacks={{
@@ -955,7 +1054,7 @@ export default class App extends React.Component {
                     <Table
                         page={this.state.page}
                         rowsPerPage={this.getPageRowDisplay()}
-                        searchResult={this.state.result}
+                        searchResult={this._getPageData()}
                         overflowResult={this.state.result_overflow}
                         resultOffset={this.state.result_offset}
                         loadingState={this.state.awaiting_results}

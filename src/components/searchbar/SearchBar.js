@@ -20,7 +20,7 @@ export default function Searchbar({ updateFieldCallbacks, setRefCallbacks, proje
     updateLinesRef(lines_field);
 
     // Destructure callbacks for updating app state
-    const { updateCharacters, updateProjects, updateLines, updateEpisodes, updateInputFocus } = updateFieldCallbacks;
+    const { updateCharacters, updateProjects, updateLines, updateEpisodes, updateQueryParams, updateInputFocus } = updateFieldCallbacks;
 
     return (
         <div ref={search_bar} className='search-bar'>
