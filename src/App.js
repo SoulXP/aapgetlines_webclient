@@ -17,9 +17,9 @@ const APP_DATA_PROVIDER         = api;
 const APP_PREFETCHBUFFER_MAX    = 1;
 const APP_HASH_SEED             = 69420;
 
-const APP_FLAG_SUCCESS = (1 << 0);
-const APP_FLAG_ERROR   = (1 << 1);
-const APP_FLAG_FAILURE = (1 << 2);
+const APP_FLAG_SUCCESS = 1 << 0;
+const APP_FLAG_ERROR   = 1 << 1;
+const APP_FLAG_FAILURE = 1 << 2;
 const APP_ERRORS = {
     [APP_FLAG_SUCCESS]: {
         msg: 'success'
@@ -46,7 +46,7 @@ const APP_RESULT_DEFAULT = {
         [API_RESULT_KEYS.LIMIT]:         0,
         [API_RESULT_KEYS.RESULTS]:       []
     },
-    hash: () => { return fast_hash_53('', APP_HASH_SEED) }
+    hash: () => { return fast_hash_53(primitive_to_string(APP_QUERYPARAMS_DEFAULT), APP_HASH_SEED) }
 };
 
 const APP_QUERYPARAMS_DEFAULT = {
@@ -335,28 +335,86 @@ export default class App extends React.Component {
 
         // Fetch existing query parameters
         const qry_parameters = this.state.current_query_parameters;
-        
-        // Verify that data for requested parameters are not already available in data buffers
-        let buffer_index = -1;
-        const parameters_hash = this._hashParameters(parameters);
-        for (let i = 0; i < this.state._data_buffers.length; i++) {
-            if (this.state._data_buffers[i].hash === parameters_hash) buffer_index = i;
+
+        if (this._getTotalStoredBuffers() > 0) {
+            // Verify that data for requested parameters are not already available in data buffers
+            // let buffer_index = -1;
+            // const parameters_hash = this._hashParameters(parameters);
+            // for (let i = 0; i < this.state._data_buffers.length; i++) {
+            //     if (this.state._data_buffers[i].hash() === parameters_hash) buffer_index = i;
+            // }
+    
+            // if (buffer_index === -1) {
+            //     // TODO: Handle no matched buffers - refill all from start
+            // } else {
+            //     // TODO:
+            // }
+        } else {
+            // Build query URI
+            const { projects, episodes, characters, lines, limit, page, offset } = parameters;
+            
+            let qry_urls = [];
+            for (let i = 0; i < this._getTotalAllowedBuffers(); i++) {
+                // TODO: Handle offset
+                qry_urls.push(build_query_string(projects, episodes, characters, lines, limit, page + i, offset))
+            }
+
+            if (!this._isFlagSuccess(this._fillBuffersWithQueries(qry_urls))) {
+                console.log('[MESSAGE] could not fill buffers with provided parameters');
+                return APP_FLAG_FAILURE;
+            }
         }
-
-        // Build query string
-        const { projects, episodes, characters, lines, limit, page, offset } = parameters;
-
-        // Check if buffers
         
         return APP_FLAG_SUCCESS;
     }
 
-    _queryDataProvider(qry = '') {
+    _fillBuffersWithQueries(urls = []) {
+        if (urls.length === 0) {
+            console.log('[WARNING] no URLs were provided to query API');
+            return APP_FLAG_FAILURE;
+        }
+        
+        let results = [];
+        for (const u of urls) {
+            const qry_result = this._queryDataProvider(u);
+            if (this._isFlagSuccess(results.flag)) results.push(qry_result.result);
+        }
 
+        // Update app buffers with state
+        if (results.length > 0) this.setState({ _data_buffers: [...results] });
+        else console.log('[MESSAGE] query to API had no results');
+        
+        return APP_FLAG_SUCCESS;
     }
 
-    _getTotalAvailableBuffers() {
+    async _queryDataProvider(qry = '') {
+        if (qry === '') {
+            console.log('[WARNING] cannot make query to data provider with an empty query');
+            return { flag: APP_FLAG_FAILURE, result: APP_RESULT_DEFAULT.data };
+        }
+
+        // TODO: Verify format of query string before calling data provider
+
+        console.log('[MESSAGE] making call to API with href:', qry);
+        const qry_response = ((!invalid_search)
+            ? await APP_DATA_PROVIDER.get(qry)
+            : { status: 0 }
+        );
+
+        const qry_data = ((qry_response.status === 200)
+            ? qry_response.data
+            : APP_RESULT_DEFAULT.data
+        );
+
+        return { flag: APP_FLAG_SUCCESS, result: qry_data };
+    }
+
+    _getTotalAllowedBuffers() {
         return (APP_PREFETCHBUFFER_MAX * 2) + 1;
+    }
+
+    _getTotalStoredBuffers() {
+        return this.state._data_buffers.length;
     }
 
 // END OF WIP IMPLEMENTATION FOR ROTATING PREFETCH BUFFER MODEL
