@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { fast_hash_53, primitive_to_string, get_type } from '../src/utils/Algorithm.js';
+import regeneratorRuntime from "regenerator-runtime";
 
 // Fast Hash 53 Suite
 describe('Fast Hash 53', () => {

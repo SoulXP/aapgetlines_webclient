@@ -17,6 +17,7 @@
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "react-scripts": "^3.4.4",
+    "regenerator-runtime": "^0.13.9",
     "web-vitals": "^1.1.2"
   },
   "scripts": {
@@ -39,10 +40,9 @@
       "not op_mini all"
     ],
     "development": [
-      "last 5 chrome version",
+      "last 1 chrome version",
       "last 1 firefox version",
-      "last 1 safari version",
-      "last 1 edge version"
+      "last 1 safari version"
     ]
   },
   "devDependencies": {
