@@ -108,6 +108,7 @@ export default class App extends React.Component {
 
             // State for WIP Rotating Prefetch Buffer Model
             _display_buffer_index: 0,
+            _result_offset: 0,
             _data_buffers: [],
             _overflow_buffer: [],
             
@@ -194,12 +195,8 @@ export default class App extends React.Component {
     getBackgroundColor() {
         let background_color = APP_COLOUR_PRIMARY_BLUE;
 
-        // RED: Error result
-        // GREEN: Success result
-
         const successful_results = this.state.successful_results;
-        const have_results = this.state.result.data[API_RESULT_KEYS.TOTAL_RESULTS] > 0;
-        const new_search = this.state.current_query_parameters
+        const have_results = this._getBufferTotalRemoteResults() > 0;
 
         if (have_results) {
             background_color = APP_COLOUR_PRIMARY_GREEN;
@@ -371,42 +368,120 @@ export default class App extends React.Component {
 
     _offsetPage(offset = 0) {
         const next_page = this.state.page + offset;
-        const api_total_query = this._getDisplayBufferTotalRemoteResults();
+        const api_total_query = this._getBufferTotalRemoteResults();
         const total_page_slices = Math.ceil(api_total_query / this.getPageRowDisplay());
-        this.setState({ page: Math.max(0, Math.min(next_page, total_page_slices)) });
+        const next_local_page = Math.max(0, Math.min(next_page, total_page_slices));
+        this.setState({ page: next_local_page });
     }
 
     _getPageData(offset = 0) {
         // Function constants
-        const api_total_query = this.state.result.data[API_RESULT_KEYS.TOTAL_QUERY];
-        const api_max_query = this.state.result.data[API_RESULT_KEYS.MAX_QUERY];
-        const api_results = this.state.result.data[API_RESULT_KEYS.RESULTS];
-        const api_current_page = this.state.result.data[API_RESULT_KEYS.PAGE];
-        const total_page_slices = Math.ceil(api_total_query / this.getPageRowDisplay());
+        const api_max_query = this._getBufferMaxRemoteResults();
+        const api_current_page = this._getBufferRemotePage();
         const current_page_display = this.getPageRowDisplay();
         const current_local_page = this.state.page;
 
         if (this._getTotalStoredBuffers() === 0) return [];
 
         // Slice up results for returning
-        const display_buffer = this._getDisplayBuffer();
-        const slice_offset = 0;
-        const slice_start = (current_local_page * current_page_display) - (api_current_page * api_max_query) + slice_offset;
+        const display_buffer = [...this._getDisplayBuffer(), ...this._getOverflowBuffer()];
+        const slice_offset = this.state._result_offset;
+        const slice_delta = (current_local_page * current_page_display) - (api_current_page * api_max_query);
+        const slice_start = Math.max(0, slice_delta);
         const slice_end = Math.min(display_buffer.length, slice_start + current_page_display);
 
         return display_buffer.slice(slice_start, slice_end);
     }
 
     _getDisplayBuffer() {
+        if (this._getTotalStoredBuffers() === 0) return APP_RESULT_DEFAULT;
         return this.state._data_buffers[this.state._display_buffer_index].data[API_RESULT_KEYS.RESULTS];
+    }
+    
+    _getOverflowBuffer() {
+        return this.state._overflow_buffer;
+    }
+
+    _getBufferMaxRemoteResults(index = this.state._display_buffer_index) {
+        if (this._getTotalStoredBuffers() === 0) return APP_RESULT_DEFAULT[API_RESULT_KEYS.MAX_QUERY];
+        return this.state._data_buffers[index].data[API_RESULT_KEYS.MAX_QUERY];
+    }
+
+    _getBufferTotalRemoteResults(index = this.state._display_buffer_index) {
+        if (this._getTotalStoredBuffers() === 0) return APP_RESULT_DEFAULT[API_RESULT_KEYS.TOTAL_QUERY];
+        return this.state._data_buffers[index].data[API_RESULT_KEYS.TOTAL_QUERY];
+    }
+
+    _getBufferTotalReturnedResults(index = this.state._display_buffer_index) {
+        if (this._getTotalStoredBuffers() === 0) return APP_RESULT_DEFAULT[API_RESULT_KEYS.TOTAL_RESULTS];
+        return this.state._data_buffers[index].data[API_RESULT_KEYS.TOTAL_RESULTS];
+    }
+    
+    _getBufferRemotePage(index = this.state._display_buffer_index) {
+        if (this._getTotalStoredBuffers() === 0) return APP_RESULT_DEFAULT[API_RESULT_KEYS.PAGE];
+        return this.state._data_buffers[index].data[API_RESULT_KEYS.PAGE];    
+    }
+
+    _getTotalAllowedBuffers() {
+        return (APP_PREFETCHBUFFER_MAX * 2) + 1;
+    }
+
+    _getTotalStoredBuffers() {
+        return this.state._data_buffers.length;
+    }
+
+    _refreshBuffers() {
+        const api_total_query = this._getBufferMaxRemoteResults();
+        const total_page_slices = Math.floor(api_total_query / this.getPageRowDisplay());
+        const api_max_query = this._getBufferMaxRemoteResults();
+        const api_current_page = this._getBufferRemotePage();
+        const max_mod_pages = Math.floor(api_max_query % this.getPageRowDisplay());
+        const total_missing_buffer = this.getPageRowDisplay() - max_mod_pages + (max_mod_pages * api_current_page);
+
+        if (this.state._result_offset !== total_missing_buffer) {
+            this.setState({
+                _result_offset: total_missing_buffer,
+                _overflow_buffer: this.state._data_buffers[this.state._display_buffer_index + 1].data[API_RESULT_KEYS.RESULTS].slice(0, total_missing_buffer),
+            });
+        }
+
+        const local_gt_slices = this.state.page > total_page_slices * (this._getBufferRemotePage() + 1);
+        const local_lt_slices = this.state.page < total_page_slices * (this._getBufferRemotePage());
+
+        let buffer_index_offset = 0;
+        if (local_gt_slices) {
+            buffer_index_offset = 1;
+        } else if (local_lt_slices) {
+            buffer_index_offset = -1;
+        }
+
+        const rotate_result = this._rotateBuffers(buffer_index_offset);
+
+        return APP_FLAG_SUCCESS;
     }
 
     _rotateBuffers(direction = 0) {
         if (direction === 0) {
-            console.log('[WARNING] cannot rotate buffers with a direction of 0');
-            return APP_FLAG_ERROR;
+            console.log('[MESSAGE] cannot rotate buffers with a direction of 0');
+            return APP_FLAG_FAILURE;
         }
 
+        const current_buffer_is_mid = this.state._display_buffer_index === Math.floor(this._getTotalStoredBuffers() / 2);
+
+        if (current_buffer_is_mid) {
+            console.log('rotating buffers');
+            const rotation_query_page = this._data_buffers[this.state._display_buffer_index + direction].query_params.page;
+            const modifier = (direction < 0) ? Array.shift : Array.pop;
+            const modify_buffers = (f) => { f(this.state._data_buffers) };
+            modify_buffers(modifier);
+
+            // TODO: Make rotation work
+
+            console.log(this.state._data_buffers);
+        }
+        
+        this.setState({ _display_buffer_index: this.state._display_buffer_index + direction });
+        
         return APP_FLAG_SUCCESS;
     }
 
@@ -415,41 +490,61 @@ export default class App extends React.Component {
     }
 
     async _dispatchQuery(parameters) {
-        // TODO: Handle empty parameters
-
-        // Fetch existing query parameters
-        const qry_parameters = this.state.current_query_parameters;
-
         if (this._getTotalStoredBuffers() > 0) {
-            // Verify that data for requested parameters are not already available in data buffers
-            // let buffer_index = -1;
-            // const parameters_hash = this._hashParameters(parameters);
-            // for (let i = 0; i < this.state._data_buffers.length; i++) {
-            //     if (this.state._data_buffers[i].hash() === parameters_hash) buffer_index = i;
-            // }
-    
-            // if (buffer_index === -1) {
-            //     // TODO: Handle no matched buffers - refill all from start
-            // } else {
-            //     // TODO:
-            // }
+            // TODO
         } else {
             // Build query URI
             const { projects, episodes, characters, lines, limit, page, offset } = parameters;
             
             let qry_urls = [];
+
+            this.setState({ awaiting_results: true });
+            
             for (let i = 0; i < this._getTotalAllowedBuffers(); i++) {
-                // TODO: Handle offset
                 qry_urls.push(build_query_string(projects, episodes, characters, lines, limit, page + i, offset))
             }
 
             if (!this._isFlagSuccess(await this._fillBuffersWithQueries(qry_urls, parameters))) {
+                // Handle UI state
                 console.log('[MESSAGE] could not fill buffers with provided parameters');
+                this.setState({ successful_results: false });
                 return APP_FLAG_FAILURE;
             }
         }
         
+        this.setState({ awaiting_results: false });
+        this.setState({ successful_results: true });
         return APP_FLAG_SUCCESS;
+    }
+
+    _clearSearch(clear_results = true) {
+        // Clear UI input fields
+        this.setState({
+            projects: '',
+            characters: '',
+            episodes: '',
+            lines: ''
+        });
+
+        // Clear app search state
+        if (clear_results) {
+            this.setState({
+                page: 0,
+                result: APP_RESULT_DEFAULT,
+                result_overflow : [],
+                result_overflow_page: 0,
+                result_offset: 0,
+                current_query: '',
+                current_query_parameters: APP_QUERYPARAMS_DEFAULT,
+                successful_results: false,
+                result_prefetch_1: APP_RESULT_DEFAULT,
+                awaiting_results: false,
+                _display_buffer_index: 0,
+                _result_offset: 0,
+                _data_buffers: [],
+                _overflow_buffer: []
+            });
+        }
     }
 
     async _fillBuffersWithQueries(urls = [], parameters = APP_QUERYPARAMS_DEFAULT) {
@@ -502,14 +597,6 @@ export default class App extends React.Component {
         }
 
         return { flag: APP_FLAG_FAILURE, result: APP_RESULT_DEFAULT };
-    }
-
-    _getTotalAllowedBuffers() {
-        return (APP_PREFETCHBUFFER_MAX * 2) + 1;
-    }
-
-    _getTotalStoredBuffers() {
-        return this.state._data_buffers.length;
     }
 
 // END OF WIP IMPLEMENTATION FOR ROTATING PREFETCH BUFFER MODEL
@@ -882,6 +969,7 @@ export default class App extends React.Component {
                 e.preventDefault();
                 // this.offsetPage(-1);
                 this._offsetPage(-1);
+                this._refreshBuffers();
             }
             
             // Change results to next page on Ctrl/Cmd + Right
@@ -889,6 +977,7 @@ export default class App extends React.Component {
                 e.preventDefault();
                 // this.offsetPage(1);
                 this._offsetPage(1);
+                this._refreshBuffers();
             }
             
             // Clear search fields on 1x Escape
@@ -920,7 +1009,8 @@ export default class App extends React.Component {
             // Clear clear search results on 2x Escape
             if (e.key === 'Escape' && this.state.btn_last_pressed === 'Escape' && !this.state.key_timed_out)
             {
-                this.clearSearch(true);
+                // this.clearSearch(true);
+                this._clearSearch(true);
                 this.projectsInput.current.focus();
                 this.setState({ current_input_focus: 0 });
             }
@@ -1073,11 +1163,11 @@ export default class App extends React.Component {
                         />
                         <TablePagination
                             className='pagination-bar'
-                            results={this.state.result}
+                            totalResults={this._getBufferTotalRemoteResults()}
                             refreshTableCallback={() => { this.refreshTable(); }}
                             page={this.state.page}
                             rowsPerPage={this.getPageRowDisplay()}
-                            updatePageCallback={(v) => { this.offsetPage(v); }}
+                            updatePageCallback={(v) => { this._offsetPage(v); }}
                         />
                         <div style={{ marginRight: '3rem', visibility: 'hidden' }}>{this.getPageRowDisplay()}</div>
                     </div>

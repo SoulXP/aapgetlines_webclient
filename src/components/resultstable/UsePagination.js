@@ -4,18 +4,18 @@ import { ArrowForward, ArrowBack } from '@mui/icons-material'
 import { API_RESULT_KEYS } from "../../http/ApiClient";
 import './UsePagination.css'
 
-export default function TablePagination({results, page, rowsPerPage, updatePageCallback, refreshTableCallback}) {
+export default function TablePagination({totalResults, page, rowsPerPage, updatePageCallback, refreshTableCallback}) {
     // Extract stateful variables
-    const total_results = results.data[API_RESULT_KEYS.TOTAL_QUERY];
+    // const total_results = results.data[API_RESULT_KEYS.TOTAL_QUERY];
 
     // Variables for UI display
-    const total_page = Math.ceil(total_results / rowsPerPage);
+    const total_page = Math.ceil(totalResults / rowsPerPage);
     let display = (<span className='normal-text'>No Results</span>);
 
     // Update table
     refreshTableCallback();
 
-    if (total_results > 0) {
+    if (totalResults > 0) {
         display = (<>
             <span>Page {page + 1} of {total_page}</span>
             <br/>
