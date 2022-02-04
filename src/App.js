@@ -10,7 +10,7 @@ import OptionsButton from './components/buttons/OptionsButton.js'
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import LinearProgress from '@mui/material/LinearProgress';
 import Box from '@mui/material/Box';
-import { array_is_same, fast_hash_53, primitive_to_string } from './utils/Algorithm.js';
+import { array_is_same, fast_hash_53, primitive_to_string, rotl, rotr } from './utils/Algorithm.js';
 
 // App class globals
 const APP_DATA_PROVIDER         = api;
@@ -47,6 +47,7 @@ const APP_QUERYPARAMS_DEFAULT = {
 const APP_RESULT_DEFAULT = {
     query: '',
     query_params: APP_QUERYPARAMS_DEFAULT,
+    hash: () => { return fast_hash_53(primitive_to_string(APP_RESULT_DEFAULT), APP_HASH_SEED) },
     data: {
         [API_RESULT_KEYS.TOTAL_QUERY]:   0,
         [API_RESULT_KEYS.TOTAL_RESULTS]: 0,
@@ -456,32 +457,71 @@ export default class App extends React.Component {
         }
 
         const rotate_result = this._rotateBuffers(buffer_index_offset);
+        console.log('buffer', this.state._data_buffers);
 
         return APP_FLAG_SUCCESS;
     }
 
-    _rotateBuffers(direction = 0) {
+    async _rotateBuffers(direction = 0) {
         if (direction === 0) {
             console.log('[MESSAGE] cannot rotate buffers with a direction of 0');
             return APP_FLAG_FAILURE;
         }
 
-        const current_buffer_is_mid = this.state._display_buffer_index === Math.floor(this._getTotalStoredBuffers() / 2);
+        const current_buffer_is_start = this.state._display_buffer_index === 0;
+        const current_buffer_is_mid   = this.state._display_buffer_index === Math.floor(this._getTotalStoredBuffers() / 2);
+        const current_buffer_is_end   = this.state._display_buffer_index === this._getTotalStoredBuffers() - 1;
+        let new_buffer_index = this.state._display_buffer_index + 1;
 
-        if (current_buffer_is_mid) {
+        if (current_buffer_is_start) {
+            // TODO
+        } 
+        
+        else if (current_buffer_is_mid) {
+            //    1 2 3 rotr
+            // -> 3 1 2 shift
+            // -> _ 1 2 unshift
+            // -> 0 1 2
+
+            //    0 1 2 rotl
+            // -> 1 2 0 pop
+            // -> 1 2 _ push
+            // -> 1 2 3
+
             console.log('rotating buffers');
-            const rotation_query_page = this._data_buffers[this.state._display_buffer_index + direction].query_params.page;
-            const modifier = (direction < 0) ? Array.shift : Array.pop;
-            const modify_buffers = (f) => { f(this.state._data_buffers) };
-            modify_buffers(modifier);
+            const { projects, episodes, characters, lines, limit, page, offset } = this.state._data_buffers[this.state._display_buffer_index].query_params;
+            const boundary_index = (direction > 0) ? this.state._data_buffers.length - 1 : 0;
+            const boundary_page = this.state._data_buffers[boundary_index].query_params.page + 1;
+            const total_remote_results = this._getBufferTotalRemoteResults() / this.getPageRowDisplay();
+            const new_page = Math.max(0, Math.min(boundary_page, total_remote_results));
+            console.log('boundary index', boundary_index);
+            console.log('boundary page', boundary_page);
+            console.log('new page', new_page);
+            
+            const new_qry = build_query_string(projects, episodes, characters, lines, limit, new_page, offset);
+            
+            const insert_query = (direction > 0)
+                ? async () => { return this._insertQueryIntoBuffer(new_qry, { projects, episodes, characters, lines, limit, new_page, offset }, true);  }
+                : async () => { return this._insertQueryIntoBuffer(new_qry, { projects, episodes, characters, lines, limit, new_page, offset }, false); };
+            
+            const flag_success = await insert_query();
 
-            // TODO: Make rotation work
+            if (!this._isFlagSuccess(flag_success)) {
+                console.log('[MESSAGE] rotating buffers failed when trying to replenish with more data from API');
+                return APP_FLAG_FAILURE;
+            }
+
+            new_buffer_index = Math.floor(this._getTotalStoredBuffers() / 2);
 
             console.log(this.state._data_buffers);
         }
         
-        this.setState({ _display_buffer_index: this.state._display_buffer_index + direction });
+        else if (current_buffer_is_end) {
+            // TODO
+        }
         
+        
+        this.setState({ _display_buffer_index: new_buffer_index });
         return APP_FLAG_SUCCESS;
     }
 
@@ -501,7 +541,10 @@ export default class App extends React.Component {
             this.setState({ awaiting_results: true });
             
             for (let i = 0; i < this._getTotalAllowedBuffers(); i++) {
-                qry_urls.push(build_query_string(projects, episodes, characters, lines, limit, page + i, offset))
+                qry_urls.push({
+                    url: build_query_string(projects, episodes, characters, lines, limit, page + i, offset),
+                    parameters: { projects, episodes, characters, lines, limit, page: page + i, offset }
+                });
             }
 
             if (!this._isFlagSuccess(await this._fillBuffersWithQueries(qry_urls, parameters))) {
@@ -547,7 +590,40 @@ export default class App extends React.Component {
         }
     }
 
-    async _fillBuffersWithQueries(urls = [], parameters = APP_QUERYPARAMS_DEFAULT) {
+    _buildBufferObject(url, parameters, results) {
+        return {
+            query: url,
+            query_params: parameters,
+            hash: () => { return fast_hash_53(primitive_to_string(parameters), APP_HASH_SEED) },
+            data: results
+        };
+    }
+
+    async _insertQueryIntoBuffer(url = '', parameters = APP_QUERYPARAMS_DEFAULT, at_end = true) {
+        if (url.trim().length === 0) {
+            console.log('[WARNING] no URLs were provided to query API');
+            return APP_FLAG_FAILURE;
+        }
+
+        const update_buffers = (at_end)
+                ? (v, r) => { const rv = rotl(v); rv.pop();   rv.push(r);          }
+                : (v, r) => { const rv = rotr(v); rv.shift(); rv.unshift(0, 0, r); };
+
+        const new_element = await this._queryDataProvider(url);
+
+        if (!this._isFlagSuccess(new_element.flag)) {
+            console.log(`[MESSAGE] query to API with URL ${url} had no results`);
+            return APP_FLAG_FAILURE;
+        }
+
+        console.log('inserting result for remote query', url);
+        const buffer_object = this._buildBufferObject(url, parameters, new_element.result);
+        update_buffers(this.state._data_buffers, buffer_object);
+        
+        return APP_FLAG_SUCCESS;
+    }
+
+    async _fillBuffersWithQueries(urls = []) {
         if (urls.length === 0) {
             console.log('[WARNING] no URLs were provided to query API');
             return APP_FLAG_FAILURE;
@@ -555,16 +631,10 @@ export default class App extends React.Component {
         
         let results = [];
         for (const u of urls) {
-            const qry_result = await this._queryDataProvider(u);
+            const qry_result = await this._queryDataProvider(u.url);
             
             if (this._isFlagSuccess(qry_result.flag)) {
-                const result = {
-                    query: u,
-                    query_params: parameters,
-                    hash: () => { return fast_hash_53(primitive_to_string(parameters), APP_HASH_SEED) },
-                    data: qry_result.result
-                }
-
+                const result = this._buildBufferObject(u.url, u.parameters, qry_result.result);
                 results.push(result);
             }
         }

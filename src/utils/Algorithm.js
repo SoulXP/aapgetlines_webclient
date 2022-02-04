@@ -6,6 +6,30 @@ export function array_is_same(a, b) {
            && a.every((v, i) => v === b[i]);
 }
 
+// TODO: Tests
+export function rotl(a, n = 1) {
+    if (a.length === 0) return a;
+
+    for (let i = 0; i < n; i++) {
+        const first = a.shift();
+        a.push(first);
+    }
+
+    return a;
+}
+
+// TODO: Tests
+export function rotr(a, n = 1) {
+    if (a.length === 0) return a;
+
+    for (let i = 0; i < n; i++) {
+        const last = a.pop();
+        a.unshift(last);
+    }
+
+    return a;
+}
+
 export function get_type(obj, show_full_class = false) {
     const deep_type = Object.prototype.toString.call(obj).toLowerCase();
     const object_deep_type = Object.prototype.toString.call({}).toLowerCase();

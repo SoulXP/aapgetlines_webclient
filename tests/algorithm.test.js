@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { fast_hash_53, primitive_to_string, get_type } from '../src/utils/Algorithm.js';
+import { fast_hash_53, primitive_to_string, get_type, rotl, rotr } from '../src/utils/Algorithm.js';
 import regeneratorRuntime from "regenerator-runtime";
 
 // Fast Hash 53 Suite
@@ -131,6 +131,25 @@ describe('Primitive to String Conversion', () => {
         it(t['msg'], () => {
             expect(primitive_to_string(t['param1']))
             .toBe(t['expected']);
+        });
+    }
+});
+
+// Array algorithms
+describe('Array Algorithms', () => {
+    const tests = [
+        { msg: 'Rotate Left Once',     expected: [2,3,1], f: rotl, param1: [1,2,3], param2: 1 },
+        { msg: 'Rotate Left Twice',    expected: [3,1,2], f: rotl, param1: [1,2,3], param2: 2 },
+        { msg: 'Rotate Left 5 Times',  expected: [3,1,2], f: rotl, param1: [1,2,3], param2: 5 },
+        { msg: 'Rotate Right Once',    expected: [3,1,2], f: rotr, param1: [1,2,3], param2: 1 },
+        { msg: 'Rotate Right Twice',   expected: [2,3,1], f: rotr, param1: [1,2,3], param2: 2 },
+        { msg: 'Rotate Right 5 Times', expected: [2,3,1], f: rotr, param1: [1,2,3], param2: 5 },
+    ];
+
+    for (const t of tests) {
+        it(t['msg'], () => {
+            expect(t['f'](t['param1'], t['param2']))
+            .toStrictEqual(t['expected']);
         });
     }
 });
