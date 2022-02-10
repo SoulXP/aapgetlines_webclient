@@ -22,6 +22,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
+    "start-win": "set NODE_OPTIONS=--openssl-legacy-provider && react-scripts start",
     "build": "react-scripts build",
     "test-app": "react-scripts test",
     "test-utils": "jest ./tests",
@@ -46,7 +47,7 @@
     ]
   },
   "devDependencies": {
-    "@babel/core": "^7.16.12",
+    "@babel/core": "^7.17.2",
     "jest": "^27.4.7"
   },
   "jest": {

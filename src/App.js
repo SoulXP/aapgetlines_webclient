@@ -457,7 +457,6 @@ export default class App extends React.Component {
         }
 
         const rotate_result = this._rotateBuffers(buffer_index_offset);
-        console.log('buffer', this.state._data_buffers);
 
         return APP_FLAG_SUCCESS;
     }
@@ -472,6 +471,9 @@ export default class App extends React.Component {
         const current_buffer_is_mid   = this.state._display_buffer_index === Math.floor(this._getTotalStoredBuffers() / 2);
         const current_buffer_is_end   = this.state._display_buffer_index === this._getTotalStoredBuffers() - 1;
         let new_buffer_index = this.state._display_buffer_index + 1;
+        console.log('start', current_buffer_is_start);
+        console.log('mid', current_buffer_is_mid);
+        console.log('end', current_buffer_is_end);
 
         if (current_buffer_is_start) {
             // TODO
@@ -490,8 +492,12 @@ export default class App extends React.Component {
 
             console.log('rotating buffers');
             const { projects, episodes, characters, lines, limit, page, offset } = this.state._data_buffers[this.state._display_buffer_index].query_params;
-            const boundary_index = (direction > 0) ? this.state._data_buffers.length - 1 : 0;
-            const boundary_page = this.state._data_buffers[boundary_index].query_params.page + 1;
+            const boundary_index = (direction > 0) ? this._getTotalStoredBuffers() - 1 : 0;
+            const qry_page_offset = (direction > 0) ? 1 : -1;
+            const boundary_page = this.state._data_buffers[boundary_index].query_params.page + qry_page_offset;
+            console.log('buffer index', boundary_index);
+            console.log('stored buffers', this._getTotalStoredBuffers());
+            console.log('qry page', this.state._data_buffers[boundary_index].query_params.page);
             const total_remote_results = this._getBufferTotalRemoteResults() / this.getPageRowDisplay();
             const new_page = Math.max(0, Math.min(boundary_page, total_remote_results));
             console.log('boundary index', boundary_index);
@@ -501,8 +507,8 @@ export default class App extends React.Component {
             const new_qry = build_query_string(projects, episodes, characters, lines, limit, new_page, offset);
             
             const insert_query = (direction > 0)
-                ? async () => { return this._insertQueryIntoBuffer(new_qry, { projects, episodes, characters, lines, limit, new_page, offset }, true);  }
-                : async () => { return this._insertQueryIntoBuffer(new_qry, { projects, episodes, characters, lines, limit, new_page, offset }, false); };
+                ? async () => { return this._insertQueryIntoBuffer(new_qry, { projects, episodes, characters, lines, limit, page: new_page, offset }, true);  }
+                : async () => { return this._insertQueryIntoBuffer(new_qry, { projects, episodes, characters, lines, limit, page: new_page, offset }, false); };
             
             const flag_success = await insert_query();
 
@@ -512,8 +518,6 @@ export default class App extends React.Component {
             }
 
             new_buffer_index = Math.floor(this._getTotalStoredBuffers() / 2);
-
-            console.log(this.state._data_buffers);
         }
         
         else if (current_buffer_is_end) {
@@ -606,8 +610,8 @@ export default class App extends React.Component {
         }
 
         const update_buffers = (at_end)
-                ? (v, r) => { const rv = rotl(v); rv.pop();   rv.push(r);          }
-                : (v, r) => { const rv = rotr(v); rv.shift(); rv.unshift(0, 0, r); };
+            ? (v, r) => { const rv = rotl(v); rv.pop();   rv.push(r);    }
+            : (v, r) => { const rv = rotr(v); rv.shift(); rv.unshift(r); };
 
         const new_element = await this._queryDataProvider(url);
 
@@ -616,9 +620,10 @@ export default class App extends React.Component {
             return APP_FLAG_FAILURE;
         }
 
-        console.log('inserting result for remote query', url);
         const buffer_object = this._buildBufferObject(url, parameters, new_element.result);
+        console.log('inserting result for remote query', url, 'value', buffer_object);
         update_buffers(this.state._data_buffers, buffer_object);
+        console.log('buffer', this.state._data_buffers);
         
         return APP_FLAG_SUCCESS;
     }
