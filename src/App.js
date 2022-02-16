@@ -289,7 +289,7 @@ export default class App extends React.Component {
             {episode: this.state.episodes,     data: list_episodes   },
             {character: this.state.characters, data: list_characters },
             {line: this.state.lines,           data: list_lines      }
-        ]
+        ];
 
         // Determine if new search is only white space
         const re_space = new RegExp('^ *$');
@@ -370,27 +370,30 @@ export default class App extends React.Component {
     _offsetPage(offset = 0) {
         const next_page = this.state.page + offset;
         const api_total_query = this._getBufferTotalRemoteResults();
-        const total_page_slices = Math.ceil(api_total_query / this.getPageRowDisplay());
+        const total_page_slices = Math.floor(api_total_query / this.getPageRowDisplay());
         const next_local_page = Math.max(0, Math.min(next_page, total_page_slices));
         this.setState({ page: next_local_page });
     }
 
-    _getPageData(offset = 0) {
+    _getPageData() {
         // Function constants
-        const api_max_query = this._getBufferMaxRemoteResults();
-        const api_current_page = this._getBufferRemotePage();
+        const api_max_query        = this._getBufferMaxRemoteResults();
+        const api_current_page     = this._getBufferRemotePage();
         const current_page_display = this.getPageRowDisplay();
-        const current_local_page = this.state.page;
+        const current_local_page   = this.state.page;
 
         if (this._getTotalStoredBuffers() === 0) return [];
 
         // Slice up results for returning
-        const display_buffer = [...this._getDisplayBuffer(), ...this._getOverflowBuffer()];
+        const display_buffer = (api_current_page < this._getTotalStoredBuffers())
+            ? [...this._getDisplayBuffer(), ...this._getOverflowBuffer()]
+            : [...this._getDisplayBuffer()];
+
         const slice_offset = this.state._result_offset;
         const slice_delta = (current_local_page * current_page_display) - (api_current_page * api_max_query);
         const slice_start = Math.max(0, slice_delta);
         const slice_end = Math.min(display_buffer.length, slice_start + current_page_display);
-
+        
         return display_buffer.slice(slice_start, slice_end);
     }
 
@@ -411,6 +414,11 @@ export default class App extends React.Component {
     _getBufferTotalRemoteResults(index = this.state._display_buffer_index) {
         if (this._getTotalStoredBuffers() === 0) return APP_RESULT_DEFAULT[API_RESULT_KEYS.TOTAL_QUERY];
         return this.state._data_buffers[index].data[API_RESULT_KEYS.TOTAL_QUERY];
+    }
+
+    _getTotalRemotePages() {
+        if (this._getTotalStoredBuffers() === 0) return 0;
+        return Math.floor(this._getBufferTotalRemoteResults() / this._getBufferMaxRemoteResults());
     }
 
     _getBufferTotalReturnedResults(index = this.state._display_buffer_index) {
@@ -439,7 +447,7 @@ export default class App extends React.Component {
         const max_mod_pages = Math.floor(api_max_query % this.getPageRowDisplay());
         const total_missing_buffer = this.getPageRowDisplay() - max_mod_pages + (max_mod_pages * api_current_page);
 
-        if (this.state._result_offset !== total_missing_buffer) {
+        if (this.state._result_offset !== total_missing_buffer && this._getBufferRemotePage() + 1 < this._getTotalRemotePages()) {
             this.setState({
                 _result_offset: total_missing_buffer,
                 _overflow_buffer: this.state._data_buffers[this.state._display_buffer_index + 1].data[API_RESULT_KEYS.RESULTS].slice(0, total_missing_buffer),
@@ -471,9 +479,6 @@ export default class App extends React.Component {
         const current_buffer_is_mid   = this.state._display_buffer_index === Math.floor(this._getTotalStoredBuffers() / 2);
         const current_buffer_is_end   = this.state._display_buffer_index === this._getTotalStoredBuffers() - 1;
         let new_buffer_index = this.state._display_buffer_index + 1;
-        console.log('start', current_buffer_is_start);
-        console.log('mid', current_buffer_is_mid);
-        console.log('end', current_buffer_is_end);
 
         if (current_buffer_is_start) {
             // TODO
@@ -490,34 +495,35 @@ export default class App extends React.Component {
             // -> 1 2 _ push
             // -> 1 2 3
 
-            console.log('rotating buffers');
             const { projects, episodes, characters, lines, limit, page, offset } = this.state._data_buffers[this.state._display_buffer_index].query_params;
             const boundary_index = (direction > 0) ? this._getTotalStoredBuffers() - 1 : 0;
             const qry_page_offset = (direction > 0) ? 1 : -1;
             const boundary_page = this.state._data_buffers[boundary_index].query_params.page + qry_page_offset;
-            console.log('buffer index', boundary_index);
-            console.log('stored buffers', this._getTotalStoredBuffers());
-            console.log('qry page', this.state._data_buffers[boundary_index].query_params.page);
             const total_remote_results = this._getBufferTotalRemoteResults() / this.getPageRowDisplay();
             const new_page = Math.max(0, Math.min(boundary_page, total_remote_results));
-            console.log('boundary index', boundary_index);
-            console.log('boundary page', boundary_page);
-            console.log('new page', new_page);
             
             const new_qry = build_query_string(projects, episodes, characters, lines, limit, new_page, offset);
             
             const insert_query = (direction > 0)
                 ? async () => { return this._insertQueryIntoBuffer(new_qry, { projects, episodes, characters, lines, limit, page: new_page, offset }, true);  }
                 : async () => { return this._insertQueryIntoBuffer(new_qry, { projects, episodes, characters, lines, limit, page: new_page, offset }, false); };
-            
-            const flag_success = await insert_query();
 
-            if (!this._isFlagSuccess(flag_success)) {
-                console.log('[MESSAGE] rotating buffers failed when trying to replenish with more data from API');
-                return APP_FLAG_FAILURE;
-            }
+            insert_query().then(
+                (flag_success) => {
+                    if (!this._isFlagSuccess(flag_success)) {
+                        console.log('[MESSAGE] rotating buffers failed when trying to replenish with more data from API');
+                        return;
+                    }
 
-            new_buffer_index = Math.floor(this._getTotalStoredBuffers() / 2);
+                    const buffer_index = Math.floor(this._getTotalStoredBuffers() / 2);
+                    this.setState({ _display_buffer_index: buffer_index });
+                },
+
+                (e) => {
+                    console.log(`[ERROR]: could not insert new query when rotating buffers: ${e}`);
+                }
+            );
+
         }
         
         else if (current_buffer_is_end) {
@@ -621,9 +627,7 @@ export default class App extends React.Component {
         }
 
         const buffer_object = this._buildBufferObject(url, parameters, new_element.result);
-        console.log('inserting result for remote query', url, 'value', buffer_object);
         update_buffers(this.state._data_buffers, buffer_object);
-        console.log('buffer', this.state._data_buffers);
         
         return APP_FLAG_SUCCESS;
     }
