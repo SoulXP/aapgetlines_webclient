@@ -446,8 +446,9 @@ export default class App extends React.Component {
         const api_current_page = this._getBufferRemotePage();
         const max_mod_pages = Math.floor(api_max_query % this.getPageRowDisplay());
         const total_missing_buffer = this.getPageRowDisplay() - max_mod_pages + (max_mod_pages * api_current_page);
+        const api_next_page_in_bounds = this._getBufferTotalReturnedResults(this.state._display_buffer_index + 1) > 0;
 
-        if (this.state._result_offset !== total_missing_buffer && this._getBufferRemotePage() + 1 < this._getTotalRemotePages()) {
+        if (this.state._result_offset !== total_missing_buffer) {
             this.setState({
                 _result_offset: total_missing_buffer,
                 _overflow_buffer: this.state._data_buffers[this.state._display_buffer_index + 1].data[API_RESULT_KEYS.RESULTS].slice(0, total_missing_buffer),
@@ -458,12 +459,13 @@ export default class App extends React.Component {
         const local_lt_slices = this.state.page < total_page_slices * (this._getBufferRemotePage());
 
         let buffer_index_offset = 0;
-        if (local_gt_slices) {
+        if (api_next_page_in_bounds && local_gt_slices) {
             buffer_index_offset = 1;
         } else if (local_lt_slices) {
             buffer_index_offset = -1;
         }
-
+        
+        const rotate_result = this._rotateBuffers(buffer_index_offset);
         const rotate_result = this._rotateBuffers(buffer_index_offset);
 
         return APP_FLAG_SUCCESS;
