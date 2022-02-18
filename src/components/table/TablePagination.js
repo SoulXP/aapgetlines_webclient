@@ -1,8 +1,7 @@
 import React from "react";
 import { IconButton } from "@mui/material";
 import { ArrowForward, ArrowBack } from '@mui/icons-material'
-import { API_RESULT_KEYS } from "../../http/ApiClient";
-import './UsePagination.css'
+import './TablePagination.css'
 
 export default function TablePagination({totalResults, page, rowsPerPage, updatePageCallback, refreshTableCallback}) {
     // Extract stateful variables

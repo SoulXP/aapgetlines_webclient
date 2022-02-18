@@ -15,19 +15,6 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
 
     // Extract search result data
     const results = searchResult;
-    // const results = (overflowResult.length > 0)
-    //     ? [...searchResult.data[API_RESULT_KEYS.RESULTS], ...overflowResult]
-    //     : [...searchResult.data[API_RESULT_KEYS.RESULTS]];
-
-    // Get API search query page info
-    // const max_query_results = searchResult.data[API_RESULT_KEYS.MAX_QUERY];
-    // const query_page = searchResult.data[API_RESULT_KEYS.PAGE];
-
-    // Set start and end indexes for results list based on page number and position in current results chunk
-    // TODO: Set UI to loading state for potentially long callback queries
-    // const offset_delta = (page * rowsPerPage) - (query_page * max_query_results);
-    // const index_start = (offset_delta < 0) ? resultOffset : offset_delta;
-    // const index_end = (index_start + rowsPerPage >= results.length) ? results.length : index_start + rowsPerPage;
     
     // Check if searchResults are valid and parse results
     const table_data = results.map((found, index) => {
@@ -78,7 +65,7 @@ export default function Table({ page, rowsPerPage, searchResult, overflowResult,
                         <th><span>TC In</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
                         <th><span>TC Out</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
                         <th><span>Length</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
-                        <th style={{ width: '66%' }}><span>Line</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
+                        <th><span>Line</span><IconButton variant='outlined' size='small' disableRipple={true}><ArrowDropDownIcon/></IconButton></th>
                     </tr>
                 </thead>
                 <tbody ref={table_body} className='table-text'>

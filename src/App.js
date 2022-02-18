@@ -4,13 +4,12 @@ import './App.css';
 import Searchbar from './components/searchbar/SearchBar.js';
 import { api, API_RESULT_KEYS, API_LOCAL_DEFAULTS, build_query_string } from './http/ApiClient.js';
 import Table from './components/resultstable/Table.js';
-import { range_string_to_sequence } from './components/searchbar/EpRange.js';
-import TablePagination from './components/resultstable/UsePagination';
+import TablePagination from './components/table/TablePagination.js';
 import OptionsButton from './components/buttons/OptionsButton.js'
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import LinearProgress from '@mui/material/LinearProgress';
 import Box from '@mui/material/Box';
-import { array_is_same, fast_hash_53, primitive_to_string, rotl, rotr } from './utils/Algorithm.js';
+import { array_is_same, fast_hash_53, primitive_to_string, range_string_to_sequence, rotl, rotr } from './utils/Algorithm.js';
 
 // App class globals
 const APP_DATA_PROVIDER         = api;
@@ -465,7 +464,6 @@ export default class App extends React.Component {
             buffer_index_offset = -1;
         }
         
-        const rotate_result = this._rotateBuffers(buffer_index_offset);
         const rotate_result = this._rotateBuffers(buffer_index_offset);
 
         return APP_FLAG_SUCCESS;
